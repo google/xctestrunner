@@ -28,13 +28,13 @@ import subprocess
 import sys
 import tempfile
 
-from XCTestRunner.Shared import bundle_util
-from XCTestRunner.Shared import ios_constants
-from XCTestRunner.Shared import ios_errors
-from XCTestRunner.Shared import xcode_info_util
-from XCTestRunner.SimulatorControl import simulator_util
-from XCTestRunner.TestRunner import dummy_project
-from XCTestRunner.TestRunner import xctestrun
+from xctestrunner.Shared import bundle_util
+from xctestrunner.Shared import ios_constants
+from xctestrunner.Shared import ios_errors
+from xctestrunner.Shared import xcode_info_util
+from xctestrunner.SimulatorControl import simulator_util
+from xctestrunner.TestRunner import dummy_project
+from xctestrunner.TestRunner import xctestrun
 
 
 _LAUNCH_OPTIONS_JSON_HELP = (

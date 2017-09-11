@@ -24,9 +24,9 @@ import sys
 import threading
 import time
 
-from XCTestRunner.Shared import ios_constants
-from XCTestRunner.Shared import ios_errors
-from XCTestRunner.Shared import xcode_info_util
+from xctestrunner.Shared import ios_constants
+from xctestrunner.Shared import ios_errors
+from xctestrunner.Shared import xcode_info_util
 
 
 _XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC = 150

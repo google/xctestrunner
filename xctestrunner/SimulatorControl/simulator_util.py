@@ -22,10 +22,10 @@ import shutil
 import subprocess
 import time
 
-from XCTestRunner.Shared import ios_constants
-from XCTestRunner.Shared import ios_errors
-from XCTestRunner.Shared import plist_util
-from XCTestRunner.Shared import xcode_info_util
+from xctestrunner.Shared import ios_constants
+from xctestrunner.Shared import ios_errors
+from xctestrunner.Shared import plist_util
+from xctestrunner.Shared import xcode_info_util
 
 
 _SIMULATOR_STATES_MAPPING = {0: ios_constants.SimState.CREATING,

@@ -1,3 +1,4 @@
 .DS_Store
+.idea
 # Ignore all bazel-* symlinks.
 /bazel-*

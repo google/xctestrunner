@@ -19,11 +19,11 @@ import os
 import shutil
 import tempfile
 
-from XCTestRunner.Shared import ios_constants
-from XCTestRunner.Shared import ios_errors
-from XCTestRunner.Shared import plist_util
-from XCTestRunner.TestRunner import dummy_project
-from XCTestRunner.TestRunner import xcodebuild_test_executor
+from xctestrunner.Shared import ios_constants
+from xctestrunner.Shared import ios_errors
+from xctestrunner.Shared import plist_util
+from xctestrunner.TestRunner import dummy_project
+from xctestrunner.TestRunner import xcodebuild_test_executor
 
 
 TESTROOT_RELATIVE_PATH = '__TESTROOT__'

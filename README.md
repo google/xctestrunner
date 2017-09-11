@@ -20,10 +20,10 @@ ios_test_runner.par binary:
 ```
 $ git clone https://github.com/google/xctestrunner.git
 $ cd xctestrunner
-$ bazel build :ios_test_runner.par
-$ chmod +x bazel-bin/ios_test_runner.par
+$ bazel build xctestrunner:ios_test_runner.par
+$ ls bazel-bin/ios_test_runner.par
 ```
-- Runs the ios_test_runner.par binary.
+- Run the ios_test_runner.par binary.
 
 In overview, there are two sub-commands in the runner binary.
 - test: Run test directly on connecting iOS real device or existing iOS

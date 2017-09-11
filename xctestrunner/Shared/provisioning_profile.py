@@ -21,8 +21,8 @@ import shutil
 import subprocess
 import tempfile
 
-from XCTestRunner.Shared import ios_errors
-from XCTestRunner.Shared import plist_util
+from xctestrunner.Shared import ios_errors
+from xctestrunner.Shared import plist_util
 
 
 class ProvisiongProfile(object):

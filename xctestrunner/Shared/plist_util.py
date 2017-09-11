@@ -25,7 +25,7 @@ try:
 except ImportError:
   biplist = None
 
-from XCTestRunner.Shared import ios_errors
+from xctestrunner.Shared import ios_errors
 
 
 PLIST_BUDDY = '/usr/libexec/PlistBuddy'
