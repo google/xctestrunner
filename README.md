@@ -10,28 +10,32 @@ environment variables, additional arguments.
 
 ## Prerequisites
 - Install Xcode (Xcode 7+). XCUITest support requires Xcode 8+.
-- [Install bazel](https://docs.bazel.build/install.html).
+- [Install bazel](https://docs.bazel.build/install.html) (optional).
+- py module [biplist](https://github.com/wooster/biplist).
 
-## Usage
-- Build your app under test and test bundle. You can use Xcode.app,
-`xcodebuild` command line tool or [bazel](https://github.com/bazelbuild/bazel).
-- Use [bazel](https://github.com/bazelbuild/bazel) to build
-ios_test_runner.par binary:
+## Installation
+You can download the ios_test_runner.par binary in [release](https://github.com/google/xctestrunner/releases)
+
+or build the ios_test_runner.par binary by bazel:
 ```
 $ git clone https://github.com/google/xctestrunner.git
 $ cd xctestrunner
 $ bazel build xctestrunner:ios_test_runner.par
 $ ls bazel-bin/ios_test_runner.par
 ```
+
+## Usage
+- Build your app under test and test bundle. You can use Xcode.app,
+`xcodebuild` command line tool or [bazel](https://github.com/bazelbuild/bazel).
 - Run the ios_test_runner.par binary.
 
 In overview, there are two sub-commands in the runner binary.
-- test: Run test directly on connecting iOS real device or existing iOS
+- `test`: Run test directly on connecting iOS real device or existing iOS
 simulator.
-- simulator_test: Run test on a new created simulator, which will be deleted
+- `simulator_test`: Run test on a new created simulator, which will be deleted
 after test finishes.
 
-See more details by running `./ios_test_runner.par -h` in terminal.
+See more details by running `ios_test_runner.par -h` in terminal.
 
 ## Notes
 
