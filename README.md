@@ -21,7 +21,7 @@ or build the ios_test_runner.par binary by bazel:
 $ git clone https://github.com/google/xctestrunner.git
 $ cd xctestrunner
 $ bazel build xctestrunner:ios_test_runner.par
-$ ls bazel-bin/ios_test_runner.par
+$ ls bazel-bin/xctestrunner/ios_test_runner.par
 ```
 
 ## Usage
