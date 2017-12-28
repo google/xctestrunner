@@ -57,7 +57,7 @@ class Plist(object):
       the object of the plist's field.
 
     Raises:
-      PlistError: the field does not exist in the plist dict.
+      ios_errors.PlistError: the field does not exist in the plist dict.
     """
     if self._plistlib_module is None:
       return _GetPlistFieldByPlistBuddy(self._plist_file_path, field)
@@ -77,7 +77,7 @@ class Plist(object):
           bool, string, array, dict.
 
     Raises:
-      PlistError: the field does not exist in the .plist file's dict.
+      ios_errors.PlistError: the field does not exist in the .plist file's dict.
     """
     if self._plistlib_module is None:
       _SetPlistFieldByPlistBuddy(self._plist_file_path, field, value)
@@ -117,7 +117,7 @@ class Plist(object):
           :CFBundleDocumentTypes:2:CFBundleTypeExtensions
 
     Raises:
-      PlistError: the field does not exist in the .plist file's dict.
+      ios_errors.PlistError: the field does not exist in the .plist file's dict.
     """
     if self._plistlib_module is None:
       _DeletePlistFieldByPlistBuddy(self._plist_file_path, field)
@@ -159,7 +159,8 @@ def _GetObjectWithField(target_object, field):
       target object itself.
 
   Raises:
-    PlistError: the field does not exist in the object or the field is invaild.
+    ios_errors.PlistError: the field does not exist in the object or the field
+      is invaild.
   """
   if not field:
     return target_object
@@ -187,8 +188,8 @@ def _ParseKey(target_object, key):
     If object is dict, returns key itself. If object is list, returns int(key).
 
   Raises:
-    PlistError: when object is list and key is not int, or object is not list/
-      dict.
+    ios_errors.PlistError: when object is list and key is not int, or object is
+      not list/dict.
   """
   if isinstance(target_object, dict):
     return key
@@ -245,14 +246,16 @@ def _GetPlistFieldByPlistBuddy(plist_path, field):
 
   Returns:
     the object of the plist's field.
+
+  Raises:
+    ios_errors.PlistError: the field does not exist in the plist dict.
   """
   command = [PLIST_BUDDY, '-c', 'Print :"%s"' % field, plist_path]
   try:
-    return subprocess.check_output(command).strip()
+    return subprocess.check_output(command, stderr=subprocess.STDOUT).strip()
   except subprocess.CalledProcessError as e:
-    logging.warning('Failed to get field %s in plist %s: %s',
-                    field, plist_path, e.output)
-    return ''
+    raise ios_errors.PlistError(
+        'Failed to get field %s in plist %s: %s', field, plist_path, e.output)
 
 
 def _SetPlistFieldByPlistBuddy(plist_path, field, value):
@@ -269,11 +272,11 @@ def _SetPlistFieldByPlistBuddy(plist_path, field, value):
         bool, string, array, dict.
 
   Raises:
-    PlistError: the field does not exist in the .plist file's dict.
+    ios_errors.PlistError: the field does not exist in the .plist file's dict.
   """
   command = [PLIST_BUDDY, '-c', 'Set :"%s" "%s"' % (field, value), plist_path]
   try:
-    subprocess.check_output(command)
+    subprocess.check_output(command, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError as e:
     raise ios_errors.PlistError('Failed to set field %s in plist %s: %s'
                                 % (field, plist_path, e.output))
@@ -291,11 +294,11 @@ def _DeletePlistFieldByPlistBuddy(plist_path, field):
         :CFBundleDocumentTypes:2:CFBundleTypeExtensions
 
   Raises:
-    PlistError: the field does not exist in the .plist file's dict.
+    ios_errors.PlistError: the field does not exist in the .plist file's dict.
   """
   command = [PLIST_BUDDY, '-c', 'Delete :"%s"' % field, plist_path]
   try:
-    subprocess.check_output(command)
+    subprocess.check_output(command, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError as e:
     raise ios_errors.PlistError('Failed to delete field %s in plist %s: %s'
                                 % (field, plist_path, e.output))
