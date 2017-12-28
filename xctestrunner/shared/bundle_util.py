@@ -19,8 +19,8 @@ import os
 import subprocess
 import tempfile
 
-from xctestrunner.Shared import ios_errors
-from xctestrunner.Shared import plist_util
+from xctestrunner.shared import ios_errors
+from xctestrunner.shared import plist_util
 
 
 def ExtractIPA(ipa_path, working_dir, bundle_extension):
@@ -56,7 +56,6 @@ def ExtractIPA(ipa_path, working_dir, bundle_extension):
         'Multiple files are found under Payload after extracting IPA file %s. '
         'Can not determine which is the target bundle. The files are %s.'
         % (ipa_path, extracted_bundles))
-
   return extracted_bundles[0]
 
 
@@ -68,6 +67,10 @@ def GetMinimumOSVersion(bundle_path):
 
   Returns:
     string, the minimum OS version of the provided bundle.
+
+  Raises:
+    ios_errors.PlistError: the MinimumOSVersion does not exist in the bundle's
+      Info.plist.
   """
   info_plist = os.path.join(bundle_path, 'Info.plist')
   return plist_util.Plist(info_plist).GetPlistField('MinimumOSVersion')
@@ -81,6 +84,10 @@ def GetBundleId(bundle_path):
 
   Returns:
     string, the bundle ID of the provided bundle.
+
+  Raises:
+    ios_errors.PlistError: the CFBundleIdentifier does not exist in the bundle's
+      Info.plist.
   """
   info_plist = os.path.join(bundle_path, 'Info.plist')
   return plist_util.Plist(info_plist).GetPlistField('CFBundleIdentifier')
@@ -94,6 +101,10 @@ def GetCodesignIdentity(bundle_path):
 
   Returns:
     string, the codesign identity which signs the bundle with.
+
+  Raises:
+    ios_errors.BundleError: when failed to get the signing identity from the
+      bundle.
   """
   command = ('codesign', '-dvv', bundle_path)
   process = subprocess.Popen(command, stdout=subprocess.PIPE,
@@ -104,7 +115,7 @@ def GetCodesignIdentity(bundle_path):
       return line[len('Authority='):]
 
   raise ios_errors.BundleError('Failed to extract signing identity from %s' %
-                                          output)
+                               output)
 
 
 def GetDevelopmentTeam(bundle_path):
@@ -115,6 +126,10 @@ def GetDevelopmentTeam(bundle_path):
 
   Returns:
     string, the development team of the provided bundle.
+
+  Raises:
+    ios_errors.BundleError: when failed to get the development team from the
+      bundle.
   """
   command = ('codesign', '-dvv', bundle_path)
   process = subprocess.Popen(command, stdout=subprocess.PIPE,
@@ -125,7 +140,40 @@ def GetDevelopmentTeam(bundle_path):
       return line[len('TeamIdentifier='):]
 
   raise ios_errors.BundleError('Failed to extract development team from %s' %
-                                          output)
+                               output)
+
+
+def CodesignBundle(bundle_path):
+  """Codesigns the bundle.
+
+  Args:
+    bundle_path: string, full path of bundle folder.
+
+  Raises:
+    ios_errors.BundleError: when failed to codesign the bundle.
+  """
+  identity = GetCodesignIdentity(bundle_path)
+  try:
+    subprocess.check_output(
+        ['codesign', '-f', '--preserve-metadata=identifier,entitlements',
+         '--timestamp=none', '-s', identity, bundle_path])
+  except subprocess.CalledProcessError as e:
+    raise ios_errors.BundleError(
+        'Failed to codesign the bundle %s: %s', bundle_path, e.output)
+
+
+def EnableUIFileSharing(bundle_path):
+  """Enable the UIFileSharingEnabled field in the bundle's Info.plist.
+
+  Args:
+    bundle_path: string, full path of bundle folder.
+
+  Raises:
+    ios_errors.BundleError: when failed to codesign the bundle.
+  """
+  info_plist = plist_util.Plist(os.path.join(bundle_path, 'Info.plist'))
+  info_plist.SetPlistField('UIFileSharingEnabled', True)
+  CodesignBundle(bundle_path)
 
 
 def _UnzipWithShell(src_file_path, des_file_path):

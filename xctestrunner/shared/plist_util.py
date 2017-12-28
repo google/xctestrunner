@@ -15,17 +15,16 @@
 """Utility class for managing Plist files."""
 
 import logging
+import os
 import plistlib
 import subprocess
 import xml.parsers.expat
 
+from xctestrunner.shared import ios_errors
 try:
-  # pylint: disable=g-import-not-at-top
   import biplist
 except ImportError:
   biplist = None
-
-from xctestrunner.Shared import ios_errors
 
 
 PLIST_BUDDY = '/usr/libexec/PlistBuddy'
@@ -83,8 +82,14 @@ class Plist(object):
     if self._plistlib_module is None:
       _SetPlistFieldByPlistBuddy(self._plist_file_path, field, value)
       return
+    if not field:
+      self._plistlib_module.writePlist(value, self._plist_file_path)
+      return
 
-    plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+    if os.path.exists(self._plist_file_path):
+      plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+    else:
+      plist_root_object = {}
     keys_in_field = field.rsplit(':', 1)
     if len(keys_in_field) == 1:
       key = field
@@ -212,15 +217,18 @@ def _GetPlistLibModule(plist_file_path):
     a module to read the target .plist file or None if the model can not be
       imported.
   """
+  # If the plist file path does not exist, use plistlib by default.
+  if not os.path.exists(plist_file_path):
+    return plistlib
   try:
     plistlib.readPlist(plist_file_path)
     return plistlib
   except xml.parsers.expat.ExpatError:
     if biplist is None:
       logging.info(
-        'Failed to import biplist module. Will use tool %s to handle the '
-        'binary format plist.',
-        PLIST_BUDDY)
+          'Failed to import biplist module. Will use tool %s to handle the '
+          'binary format plist.',
+          PLIST_BUDDY)
     return biplist
 
 
@@ -241,7 +249,9 @@ def _GetPlistFieldByPlistBuddy(plist_path, field):
   command = [PLIST_BUDDY, '-c', 'Print :"%s"' % field, plist_path]
   try:
     return subprocess.check_output(command).strip()
-  except subprocess.CalledProcessError:
+  except subprocess.CalledProcessError as e:
+    logging.warning('Failed to get field %s in plist %s: %s',
+                    field, plist_path, e.output)
     return ''
 
 
@@ -265,7 +275,8 @@ def _SetPlistFieldByPlistBuddy(plist_path, field, value):
   try:
     subprocess.check_output(command)
   except subprocess.CalledProcessError as e:
-    raise ios_errors.PlistError('PlistBuddy error: %s' % e.output)
+    raise ios_errors.PlistError('Failed to set field %s in plist %s: %s'
+                                % (field, plist_path, e.output))
 
 
 def _DeletePlistFieldByPlistBuddy(plist_path, field):
@@ -286,4 +297,5 @@ def _DeletePlistFieldByPlistBuddy(plist_path, field):
   try:
     subprocess.check_output(command)
   except subprocess.CalledProcessError as e:
-    raise ios_errors.PlistError('PlistBuddy error: %s' % e.output)
+    raise ios_errors.PlistError('Failed to delete field %s in plist %s: %s'
+                                % (field, plist_path, e.output))

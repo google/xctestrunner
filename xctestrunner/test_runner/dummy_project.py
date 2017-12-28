@@ -16,7 +16,6 @@
 
 The dummy project supports sdk iphonesimulator and test type XCUITest. It can
 be run with `xcodebuild build-for-testing`.
-See how to create it in //devtools/forge/mac/testrunner/TestProject/README.
 """
 
 import logging
@@ -27,13 +26,13 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 
-from xctestrunner.Shared import bundle_util
-from xctestrunner.Shared import ios_constants
-from xctestrunner.Shared import ios_errors
-from xctestrunner.Shared import plist_util
-from xctestrunner.Shared import provisioning_profile
-from xctestrunner.Shared import xcode_info_util
-from xctestrunner.TestRunner import xcodebuild_test_executor
+from xctestrunner.shared import bundle_util
+from xctestrunner.shared import ios_constants
+from xctestrunner.shared import ios_errors
+from xctestrunner.shared import plist_util
+from xctestrunner.shared import provisioning_profile
+from xctestrunner.shared import xcode_info_util
+from xctestrunner.test_runner import xcodebuild_test_executor
 
 
 _DEFAULT_PERMS = 0777
@@ -43,7 +42,9 @@ _DUMMYPROJECT_PBXPROJ_NAME = 'project.pbxproj'
 _DUMMYPROJECT_XCTESTS_SCHEME = 'TestProjectXctest'
 _DUMMYPROJECT_XCUITESTS_SCHEME = 'TestProjectXcuitest'
 
-_SIGNAL_BUILD_FOR_TESTING_SUCCEED = '** TEST BUILD SUCCEEDED **'
+_SIGNAL_BUILD_FOR_TESTING_SUCCEEDED = '** TEST BUILD SUCCEEDED **'
+_SIGNAL_XCODEBUILD_TEST_SUCCEEDED = '** TEST SUCCEEDED **'
+_SIGNAL_XCODEBUILD_TEST_FAILED = '** TEST FAILED **'
 
 
 class DummyProject(object):
@@ -60,9 +61,9 @@ class DummyProject(object):
           dummy project.
       test_bundle_dir: string, path of the test bundle.
       sdk: string, SDKRoot of the dummy project. See supported SDKs in
-          module Shared.ios_constants.
+          module shared.ios_constants.
       test_type: string, test type of the test bundle. See supported test types
-          in module Shared.ios_constants.
+          in module shared.ios_constants.
       work_dir: string, work directory which contains run files.
     """
     self._app_under_test_dir = app_under_test_dir
@@ -121,7 +122,7 @@ class DummyProject(object):
     self.GenerateDummyProject()
     self._PrepareBuildProductsDir(built_products_dir)
     logging.info('Running `xcodebuild build-for-testing` with dummy project.\n'
-                 'built_product_dir = %s\nderived_data_path = %s\n',
+                 '\tbuilt_product_dir = %s\n\tderived_data_path = %s\n',
                  built_products_dir,
                  derived_data_dir)
     command = ['xcodebuild', 'build-for-testing',
@@ -132,9 +133,14 @@ class DummyProject(object):
                '-derivedDataPath', derived_data_dir]
     run_env = dict(os.environ)
     run_env['NSUnbufferedIO'] = 'YES'
-    output = subprocess.check_output(
-        command, env=run_env, stderr=subprocess.STDOUT)
-    if _SIGNAL_BUILD_FOR_TESTING_SUCCEED not in output:
+    try:
+      output = subprocess.check_output(
+          command, env=run_env, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+      raise ios_errors.BuildFailureError('Failed to build the dummy project. '
+                                         'Output is:\n%s' % e.output)
+
+    if _SIGNAL_BUILD_FOR_TESTING_SUCCEEDED not in output:
       raise ios_errors.BuildFailureError('Failed to build the dummy project. '
                                          'Output is:\n%s' % output)
 
@@ -148,6 +154,9 @@ class DummyProject(object):
       device_id: string, id of the device.
       built_products_dir: path of the built products dir in this build session.
       derived_data_dir: path of the derived data dir in this build session.
+
+    Returns:
+      A value of type runner_exit_codes.EXITCODE.
 
     Raises:
       IllegalArgumentError: when test type is not xctest.
@@ -181,8 +190,14 @@ class DummyProject(object):
                '-scheme', self._test_scheme,
                '-destination', 'id=' + device_id,
                '-derivedDataPath', derived_data_dir]
-    xcodebuild_test_executor.XcodebuildTestExecutor(
-        command, sdk=self._sdk, test_type=self._test_type).Execute()
+    exit_code, _ = xcodebuild_test_executor.XcodebuildTestExecutor(
+        command,
+        succeeded_signal=_SIGNAL_XCODEBUILD_TEST_SUCCEEDED,
+        failed_signal=_SIGNAL_XCODEBUILD_TEST_FAILED,
+        sdk=self._sdk,
+        test_type=self._test_type,
+        device_id=device_id).Execute(return_output=False)
+    return exit_code
 
   def GenerateDummyProject(self):
     """Generates the dummy project according to the specification.
@@ -279,18 +294,20 @@ class DummyProject(object):
     pbxproj_plist_obj = plist_util.Plist(self.pbxproj_file_path)
     pbxproj_objects = pbxproj_plist_obj.GetPlistField('objects')
 
-    # Sets the build setting for generated XCTRunner.app signing.
+    # Sets the build setting of test bundle for generated XCTRunner.app signing.
     # 1) If run with iphonesimulator, don't need to set any fields in build
     # setting. xcodebuild will sign the XCTRunner.app with identity '-' and no
     # provisioning profile by default.
-    # 2) If runs with iphoneos and the test target app's embedded provisioning
+    # 2) If runs with iphoneos and the app under test's embedded provisioning
     # profile is 'iOS Team Provisioning Profile: *', set build setting for using
     # Xcode managed provisioning profile to sign the XCTRunner.app.
-    # 3) If runs with iphoneos and the test target app's embedded provisioning
+    # 3) If runs with iphoneos and the app under test's embedded provisioning
     # profile is specific, set build setting for using app under test's
     # embedded provisioning profile to sign the XCTRunner.app. If the
     # provisioning profile is not installed in the Mac machine, also installs
     # it.
+    # 4) The test bundle's provisioning profile can be overwrited by method
+    # SetTestBundleProvisioningProfile.
     if self._sdk == ios_constants.SDK.IPHONEOS:
       build_setting = pbxproj_objects[
           'XCUITestBundleBuildConfig']['buildSettings']
@@ -303,12 +320,12 @@ class DummyProject(object):
           self._work_dir)
       embedded_provision.Install()
       # Case 2)
-      if embedded_provision.name == 'iOS Team Provisioning Profile: *':
+      if embedded_provision.name.startswith('iOS Team Provisioning Profile: '):
         build_setting['CODE_SIGN_IDENTITY'] = 'iPhone Developer'
       else:
         # Case 3)
         build_setting['CODE_SIGN_IDENTITY'] = bundle_util.GetCodesignIdentity(
-            self._test_bundle_dir)
+            self._app_under_test_dir)
         (build_setting[
             'PROVISIONING_PROFILE_SPECIFIER']) = embedded_provision.name
 
@@ -332,14 +349,14 @@ class DummyProject(object):
     pbxproj_plist_obj = plist_util.Plist(self.pbxproj_file_path)
     pbxproj_objects = pbxproj_plist_obj.GetPlistField('objects')
 
-    # Sets the build setting for test target app and unit test bundle signing.
+    # Sets the build setting for app under test and unit test bundle signing.
     # 1) If run with iphonesimulator, don't need to set any fields in build
     # setting. xcodebuild will sign bundles with identity '-' and no
     # provisioning profile by default.
-    # 2) If runs with iphoneos and the test target app's embedded provisioning
+    # 2) If runs with iphoneos and the app under test's embedded provisioning
     # profile is 'iOS Team Provisioning Profile: *', set build setting for using
     # Xcode managed provisioning profile to sign bundles.
-    # 3) If runs with iphoneos and the test target app's embedded provisioning
+    # 3) If runs with iphoneos and the app under test's embedded provisioning
     # profile is specific, set build setting with using app under test's
     # embedded provisioning profile.
     if self._sdk == ios_constants.SDK.IPHONEOS:
@@ -355,7 +372,7 @@ class DummyProject(object):
           self._work_dir)
       embedded_provision.Install()
       # Case 2)
-      if embedded_provision.name == 'iOS Team Provisioning Profile: *':
+      if embedded_provision.name.startswith('iOS Team Provisioning Profile: '):
         aut_build_setting['CODE_SIGN_IDENTITY'] = 'iPhone Developer'
         test_build_setting['CODE_SIGN_IDENTITY'] = 'iPhone Developer'
         app_under_test_dev_team = bundle_util.GetDevelopmentTeam(
@@ -385,6 +402,49 @@ class DummyProject(object):
     test_project_build_setting['XCTEST_BUNDLE_NAME'] = test_bundle_name
 
     pbxproj_plist_obj.SetPlistField('objects', pbxproj_objects)
+
+  def SetTestBundleProvisioningProfile(self, test_bundle_provisioning_profile):
+    """Sets the provisioning profile specifier to the test bundle.
+
+    If the given provisioning profile is a path, will also install it in the
+    host.
+
+    Args:
+      test_bundle_provisioning_profile: string, name/path of the provisioning
+          profile of test bundle.
+    """
+    if not test_bundle_provisioning_profile:
+      return
+    provisioning_profile_is_file = False
+    if (test_bundle_provisioning_profile.startswith('/') and
+        os.path.exists(test_bundle_provisioning_profile)):
+      provisioning_profile_is_file = True
+
+    if self._sdk != ios_constants.SDK.IPHONEOS:
+      logging.warning(
+          'Can only set provisioning profile to test bundle in iphoneos SDK. '
+          'But current SDK is %s', self._sdk)
+      return
+    self.GenerateDummyProject()
+    if self._test_type == ios_constants.TestType.XCUITEST:
+      pbxproj_plist_obj = plist_util.Plist(self.pbxproj_file_path)
+      pbxproj_objects = pbxproj_plist_obj.GetPlistField('objects')
+      settings = pbxproj_objects['XCUITestBundleBuildConfig']['buildSettings']
+      settings['CODE_SIGN_IDENTITY'] = bundle_util.GetCodesignIdentity(
+          self._test_bundle_dir)
+      if not provisioning_profile_is_file:
+        settings[
+            'PROVISIONING_PROFILE_SPECIFIER'] = test_bundle_provisioning_profile
+      else:
+        profile_obj = provisioning_profile.ProvisiongProfile(
+            test_bundle_provisioning_profile, self._work_dir)
+        profile_obj.Install()
+        settings['PROVISIONING_PROFILE_SPECIFIER'] = profile_obj.name
+      pbxproj_plist_obj.SetPlistField('objects', pbxproj_objects)
+    else:
+      logging.warning(
+          'Setting provisioning profile specifier to test bundle in test type '
+          '%s is not supported.', self._test_type)
 
   def SetEnvVars(self, env_vars):
     """Sets the additional environment variables in the dummy project's scheme.
@@ -440,7 +500,7 @@ def _GetTestProject(work_dir):
   with open(os.path.join(xcodeproj_path, 'project.pbxproj'),
             'w+') as target_file:
     target_file.write(
-        pkgutil.get_data('xctestrunner.TestRunner',
+        pkgutil.get_data('xctestrunner.test_runner',
                          'TestProject/TestProject.xcodeproj/project.pbxproj'))
   xcschemes_path = os.path.join(xcodeproj_path, 'xcshareddata/xcschemes')
   os.makedirs(xcschemes_path)
@@ -448,14 +508,14 @@ def _GetTestProject(work_dir):
             'w+') as target_file:
     target_file.write(
         pkgutil.get_data(
-            'xctestrunner.TestRunner',
+            'xctestrunner.test_runner',
             'TestProject/TestProject.xcodeproj/xcshareddata/xcschemes/'
             'TestProjectXctest.xcscheme'))
   with open(os.path.join(xcschemes_path, 'TestProjectXcuitest.xcscheme'),
             'w+') as target_file:
     target_file.write(
         pkgutil.get_data(
-            'xctestrunner.TestRunner',
+            'xctestrunner.test_runner',
             'TestProject/TestProject.xcodeproj/xcshareddata/xcschemes/'
             'TestProjectXcuitest.xcscheme'))
   return test_project_path

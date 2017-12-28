@@ -20,9 +20,10 @@ import pwd
 import shutil
 import subprocess
 import tempfile
+import uuid
 
-from xctestrunner.Shared import ios_errors
-from xctestrunner.Shared import plist_util
+from xctestrunner.shared import ios_errors
+from xctestrunner.shared import plist_util
 
 
 class ProvisiongProfile(object):
@@ -72,8 +73,9 @@ class ProvisiongProfile(object):
 
     if not self._work_dir:
       self._work_dir = tempfile.mkdtemp()
-    decode_provisioning_profile = os.path.join(self._work_dir,
-                                               'decode_provision.plist')
+    decode_provisioning_profile = os.path.join(
+        self._work_dir,
+        'decode_provision_%s.plist' % str(uuid.uuid1()))
     command = ('security', 'cms', '-D', '-i', self._provisioning_profile_path,
                '-o', decode_provisioning_profile)
     logging.debug('Running command "%s"', ' '.join(command))
@@ -90,4 +92,7 @@ class ProvisiongProfile(object):
 def GetProvisioningProfilesDir():
   """Gets the provisioning profiles dir in current login user."""
   home_dir = pwd.getpwuid(os.geteuid()).pw_dir
-  return os.path.join(home_dir, 'Library/MobileDevice/Provisioning Profiles')
+  path = os.path.join(home_dir, 'Library/MobileDevice/Provisioning Profiles')
+  if not os.path.exists(path):
+    os.makedirs(path)
+  return path

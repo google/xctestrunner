@@ -23,7 +23,7 @@ _xcode_version_number = None
 
 def GetXcodeDeveloperPath():
   """Gets the active developer path of Xcode command line tools."""
-  return subprocess.check_output(['xcode-select', '-p']).strip()
+  return subprocess.check_output(('xcode-select', '-p')).strip()
 
 
 def GetXcodeVersionNumber():
@@ -41,7 +41,7 @@ def GetXcodeVersionNumber():
   # Example output:
   # Xcode 8.2.1
   # Build version 8C1002
-  output = subprocess.check_output(['xcodebuild', '-version'])
+  output = subprocess.check_output(('xcodebuild', '-version'))
   xcode_version = output.split('\n')[0].split(' ')[1]
   parts = xcode_version.split('.')
   xcode_version_number = int(parts[0]) * 100
@@ -55,9 +55,27 @@ def GetXcodeVersionNumber():
   return _xcode_version_number
 
 
+def GetSdkPlatformPath(sdk):
+  """Gets the selected SDK platform path."""
+  return subprocess.check_output(
+      ['xcrun', '--sdk', sdk, '--show-sdk-platform-path']).strip()
+
+
+def GetSdkVersion(sdk):
+  """Gets the selected SDK version."""
+  return subprocess.check_output(
+      ['xcrun', '--sdk', sdk, '--show-sdk-version']).strip()
+
+
+def GetXctestToolPath(sdk):
+  """Gets the path of xctest tool under the given SDK platform."""
+  return os.path.join(
+      GetSdkPlatformPath(sdk), 'Developer/Library/Xcode/Agents/xctest')
+
+
 def GetDarwinUserCacheDir():
   """Gets the path of Darwin user cache directory."""
-  return subprocess.check_output(['getconf', 'DARWIN_USER_CACHE_DIR']).rstrip()
+  return subprocess.check_output(('getconf', 'DARWIN_USER_CACHE_DIR')).rstrip()
 
 
 def GetXcodeEmbeddedAppDeltasDir():
