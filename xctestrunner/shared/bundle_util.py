@@ -23,40 +23,58 @@ from xctestrunner.shared import ios_errors
 from xctestrunner.shared import plist_util
 
 
-def ExtractIPA(ipa_path, working_dir, bundle_extension):
-  """Creates a temp directory and extracts IPA file there.
+def ExtractApp(compressed_app_path, working_dir):
+  """Creates a temp directory and extracts compressed file of the app there.
 
   Args:
-    ipa_path: string, full path of IPA file. The file extension name must end
-      with .ipa.
+    compressed_app_path: string, full path of compressed file. The file
+      extension name must end with .ipa.
     working_dir: string, the working directory where the extracted bundle
-        places.
-    bundle_extension: string, the extension of the extracted bundle.
+      places.
 
   Returns:
     string, the path of extracted bundle, which is
-      {working_dir}/*/Payload/*.{bundle_extension}
+      {working_dir}/*/Payload/*.app
 
   Raises:
     BundleError: when bundle is not found in extracted IPA or multiple files are
-        under Payload.
+      found in the extracted directory.
   """
-  if not ipa_path.endswith('.ipa'):
-    ios_errors.BundleError('The extension of the IPA file should be .ipa.')
-
+  if not compressed_app_path.endswith('.ipa'):
+    ios_errors.BundleError(
+        'The extension of the compressed file should be .ipa.')
   unzip_target_dir = tempfile.mkdtemp(dir=working_dir)
-  _UnzipWithShell(ipa_path, unzip_target_dir)
-  extracted_bundles = glob.glob('%s/Payload/*.%s'
-                                % (unzip_target_dir, bundle_extension))
-  if not extracted_bundles:
-    raise ios_errors.BundleError(
-        'IPA file %s broken, no expected bundle found.' % ipa_path)
-  if len(extracted_bundles) > 1:
-    raise ios_errors.BundleError(
-        'Multiple files are found under Payload after extracting IPA file %s. '
-        'Can not determine which is the target bundle. The files are %s.'
-        % (ipa_path, extracted_bundles))
-  return extracted_bundles[0]
+  _UnzipWithShell(compressed_app_path, unzip_target_dir)
+  return _ExtractBundleFile('%s/Payload' % unzip_target_dir, 'app')
+
+
+def ExtractTestBundle(compressed_test_path, working_dir):
+  """Creates a temp directory and extracts compressed file of the test bundle.
+
+  Args:
+    compressed_test_path: string, full path of compressed file. The file
+      extension name must end with .ipa/.zip.
+    working_dir: string, the working directory where the extracted bundle
+      places.
+
+  Returns:
+    string, the path of extracted bundle, which is
+      {working_dir}/*/Payload/*.xctest or {working_dir}/*/*.xctest
+
+  Raises:
+    BundleError: when bundle is not found in extracted directory or multiple
+      files are found in the extracted directory.
+  """
+  if not (compressed_test_path.endswith('.ipa') or
+          compressed_test_path.endswith('.zip')):
+    ios_errors.BundleError(
+        'The extension of the compressed file should be .ipa/zip.')
+  unzip_target_dir = tempfile.mkdtemp(dir=working_dir)
+  _UnzipWithShell(compressed_test_path, unzip_target_dir)
+  try:
+    return _ExtractBundleFile(unzip_target_dir, 'xctest')
+  except ios_errors.BundleError:
+    return _ExtractBundleFile('%s/Payload' % unzip_target_dir, 'xctest')
 
 
 def GetMinimumOSVersion(bundle_path):
@@ -174,6 +192,33 @@ def EnableUIFileSharing(bundle_path):
   info_plist = plist_util.Plist(os.path.join(bundle_path, 'Info.plist'))
   info_plist.SetPlistField('UIFileSharingEnabled', True)
   CodesignBundle(bundle_path)
+
+
+def _ExtractBundleFile(target_dir, bundle_extension):
+  """Extract single bundle file with given extension.
+
+  Args:
+    target_dir: string, the direcotry to be fetched bundle file.
+    bundle_extension: string, the extension of the extracted bundle.
+
+  Returns:
+    string, the path of extracted bundle which is with given extension.
+
+  Raises:
+    BundleError: when bundle is not found or multiple bundles are found in the
+      directory.
+  """
+  extracted_bundles = glob.glob('%s/*.%s' % (target_dir, bundle_extension))
+  if not extracted_bundles:
+    raise ios_errors.BundleError(
+        'No file with extension %s is found under %s.'
+        % (bundle_extension, target_dir))
+  if len(extracted_bundles) > 1:
+    raise ios_errors.BundleError(
+        'Multiple files with extension %s are found under %s. Can not '
+        'determine which is the target bundle. The files are %s.'
+        % (bundle_extension, target_dir, extracted_bundles))
+  return extracted_bundles[0]
 
 
 def _UnzipWithShell(src_file_path, des_file_path):

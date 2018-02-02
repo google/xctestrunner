@@ -135,10 +135,9 @@ class XctestSession(object):
       # Since xctestrun approach is more flexiable to local debug and is easy to
       # support tests_to_run feature. So in Xcode 8+, use xctestrun approach to
       # run XCTest and Logic Test.
-      xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
-      if (xcode_version_num >= 800 and
-          test_type in ios_constants.SUPPORTED_TEST_TYPES and
-          test_type != ios_constants.TestType.LOGIC_TEST):
+      if (test_type in ios_constants.SUPPORTED_TEST_TYPES and
+          test_type != ios_constants.TestType.LOGIC_TEST and
+          xcode_info_util.GetXcodeVersionNumber() >= 800):
         xctestrun_factory = xctestrun.XctestRunFactory(
             app_under_test_dir, test_bundle_dir, self._sdk, test_type,
             signing_options, self._work_dir)
@@ -146,14 +145,15 @@ class XctestSession(object):
       elif test_type == ios_constants.TestType.XCUITEST:
         raise ios_errors.IllegalArgumentError(
             'Only supports running XCUITest under Xcode 8+. '
-            'Current xcode version is %s', xcode_version_num)
+            'Current xcode version is %s',
+            xcode_info_util.GetXcodeVersionNumber())
       elif test_type == ios_constants.TestType.XCTEST:
         self._dummy_project_obj = dummy_project.DummyProject(
             app_under_test_dir, test_bundle_dir, self._sdk,
             ios_constants.TestType.XCTEST, self._work_dir)
         self._dummy_project_obj.GenerateDummyProject()
       elif test_type == ios_constants.TestType.LOGIC_TEST:
-        self._logic_test_bundle = test_bundle
+        self._logic_test_bundle = test_bundle_dir
       else:
         raise ios_errors.IllegalArgumentError(
             'The test type %s is not supported. Supported test types are %s'
@@ -283,8 +283,8 @@ def _PrepareBundles(working_dir, app_under_test_path, test_bundle_path):
           'The app under test %s should be with .app or .ipa extension.'
           % app_under_test_path)
     if app_under_test_path.endswith('.ipa'):
-      app_under_test_dir = bundle_util.ExtractIPA(
-          app_under_test_path, working_dir, 'app')
+      app_under_test_dir = bundle_util.ExtractApp(
+          app_under_test_path, working_dir)
     elif not os.path.abspath(app_under_test_path).startswith(working_dir):
       # Only copies the app under test if it is not in working directory.
       app_under_test_dir = os.path.join(
@@ -297,13 +297,14 @@ def _PrepareBundles(working_dir, app_under_test_path, test_bundle_path):
     raise ios_errors.IllegalArgumentError(
         'The test bundle does not exists: %s' % test_bundle_path)
   if not (test_bundle_path.endswith('.xctest') or
-          test_bundle_path.endswith('.ipa')):
+          test_bundle_path.endswith('.ipa') or
+          test_bundle_path.endswith('.zip')):
     raise ios_errors.IllegalArgumentError(
-        'The test bundle %s should be with .xctest or .ipa extension.'
+        'The test bundle %s should be with .xctest, .ipa or .zip extension.'
         % test_bundle_path)
-  if test_bundle_path.endswith('.ipa'):
-    test_bundle_dir = bundle_util.ExtractIPA(
-        test_bundle_path, working_dir, 'xctest')
+  if test_bundle_path.endswith('.ipa') or test_bundle_path.endswith('.zip'):
+    test_bundle_dir = bundle_util.ExtractTestBundle(
+        test_bundle_path, working_dir)
   elif not os.path.abspath(test_bundle_path).startswith(working_dir):
     # Only copies the test bundle if it is not in working directory.
     test_bundle_dir = os.path.join(working_dir,

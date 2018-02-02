@@ -4,12 +4,12 @@ load("@subpar//:subpar.bzl", "par_binary")
 
 py_library(
     name = 'shared',
-    srcs = glob(['shared/**']),
+    srcs = glob(['shared/*.py']),
 )
 
 py_library(
     name = 'simulator',
-    srcs = glob(['simulator_control/**']),
+    srcs = glob(['simulator_control/*.py']),
     deps = [
         ':shared',
     ],
@@ -18,7 +18,7 @@ py_library(
 par_binary(
     name = 'ios_test_runner',
     srcs = glob(
-        ['test_runner/**'],
+        ['test_runner/*.py'],
         exclude = ['test_runner/TestProject/**']
     ),
     main = 'test_runner/ios_test_runner.py',
