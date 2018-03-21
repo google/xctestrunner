@@ -128,6 +128,17 @@ class XctestRun(object):
       return
     self.SetXctestrunField('OnlyTestIdentifiers', tests_to_run)
 
+  def SetSkipTests(self, skip_tests):
+    """Sets the specific test methods/test classes to skip in xctestrun file.
+
+    Args:
+      skip_tests: a list of string. The format of each item is
+          Test-Class-Name[/Test-Method-Name]
+    """
+    if not skip_tests:
+      return
+    self.SetXctestrunField('SkipTestIdentifiers', skip_tests)
+
   def Run(self, device_id, sdk, derived_data_dir):
     """Runs the test with generated xctestrun file in the specific device.
 
@@ -413,8 +424,17 @@ class XctestRunFactory(object):
     if os.path.exists(xctrunner_plugins_dir):
       shutil.rmtree(xctrunner_plugins_dir)
     os.mkdir(xctrunner_plugins_dir)
-    self._test_bundle_dir = _MoveAndReplaceFile(
-        self._test_bundle_dir, xctrunner_plugins_dir)
+    # The test bundle should not exist under the new generated XCTRunner.app.
+    if os.path.islink(self._test_bundle_dir):
+      # The test bundle under PlugIns can not be symlink since it will cause
+      # app installation error.
+      new_test_bundle_path = os.path.join(
+          xctrunner_plugins_dir, os.path.basename(self._test_bundle_dir))
+      shutil.copytree(self._test_bundle_dir, new_test_bundle_path)
+      self._test_bundle_dir = new_test_bundle_path
+    else:
+      self._test_bundle_dir = _MoveAndReplaceFile(
+          self._test_bundle_dir, xctrunner_plugins_dir)
 
     generated_xctestrun_file_paths = glob.glob('%s/*.xctestrun' %
                                                derived_data_build_products_dir)
@@ -460,8 +480,16 @@ class XctestRunFactory(object):
         self._app_under_test_dir, 'PlugIns')
     if not os.path.exists(app_under_test_plugins_dir):
       os.mkdir(app_under_test_plugins_dir)
-    self._test_bundle_dir = _MoveAndReplaceFile(
-        self._test_bundle_dir, app_under_test_plugins_dir)
+    new_test_bundle_path = os.path.join(
+        app_under_test_plugins_dir, os.path.basename(self._test_bundle_dir))
+    # The test bundle under PlugIns can not be symlink since it will cause
+    # app installation error.
+    if os.path.islink(self._test_bundle_dir):
+      shutil.copytree(self._test_bundle_dir, new_test_bundle_path)
+      self._test_bundle_dir = new_test_bundle_path
+    elif new_test_bundle_path != self._test_bundle_dir:
+      self._test_bundle_dir = _MoveAndReplaceFile(
+          self._test_bundle_dir, app_under_test_plugins_dir)
 
     # The xctestrun file are under the build products directory of dummy
     # project's derived data dir.

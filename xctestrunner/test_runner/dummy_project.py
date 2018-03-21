@@ -58,12 +58,12 @@ class DummyProject(object):
 
     Args:
       app_under_test_dir: string, path of the app to be tested in
-          dummy project.
+        dummy project.
       test_bundle_dir: string, path of the test bundle.
       sdk: string, SDKRoot of the dummy project. See supported SDKs in
-          module shared.ios_constants.
+        module shared.ios_constants.
       test_type: string, test type of the test bundle. See supported test types
-          in module shared.ios_constants.
+        in module shared.ios_constants.
       work_dir: string, work directory which contains run files.
     """
     self._app_under_test_dir = app_under_test_dir
@@ -411,7 +411,7 @@ class DummyProject(object):
 
     Args:
       test_bundle_provisioning_profile: string, name/path of the provisioning
-          profile of test bundle.
+        profile of test bundle.
     """
     if not test_bundle_provisioning_profile:
       return
@@ -486,6 +486,28 @@ class DummyProject(object):
       arg_element = ET.SubElement(args_element, 'CommandLineArgument')
       arg_element.set('argument', arg)
       arg_element.set('isEnabled', 'YES')
+    scheme_tree.write(scheme_path)
+
+  def SetSkipTests(self, skip_tests):
+    """Sets the skip tests in the dummy project's scheme.
+
+    Args:
+     skip_tests: a list of string. The format of each item is
+       Test-Class-Name[/Test-Method-Name].
+    """
+    if not skip_tests:
+      return
+    self.GenerateDummyProject()
+    scheme_path = self.test_scheme_path
+    scheme_tree = ET.parse(scheme_path)
+    test_action_element = scheme_tree.getroot().find('TestAction')
+    testable_reference_element = test_action_element.find(
+        'Testables').find('TestableReference')
+    skip_tests_element = ET.SubElement(
+        testable_reference_element, 'SkippedTests')
+    for skip_test in skip_tests:
+      skip_test_element = ET.SubElement(skip_tests_element, 'Test')
+      skip_test_element.set('Identifier', skip_test)
     scheme_tree.write(scheme_path)
 
 

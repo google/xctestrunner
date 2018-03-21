@@ -17,6 +17,7 @@
 import io
 import logging
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -32,7 +33,7 @@ from xctestrunner.test_runner import runner_exit_codes
 
 
 _XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC = 150
-_SIM_TEST_MAX_ATTEMPTS = 2
+_SIM_TEST_MAX_ATTEMPTS = 3
 _TAIL_SIM_LOG_LINE = 200
 _BACKGROUND_TEST_RUNNER_ERROR = 'Failed to background test runner'
 _PROCESS_EXISTED_OR_CRASHED_ERROR = ('The process did launch, but has since '
@@ -41,6 +42,7 @@ _REQUEST_DENIED_ERROR = ('The request was denied by service delegate '
                          '(SBMainWorkspace) for reason')
 _APP_UNKNOWN_TO_FRONTEND_PATTERN = re.compile(
     'Application ".*" is unknown to FrontBoard.')
+_INIT_SIM_SERVICE_ERROR = 'Failed to initiate service connection to simulator'
 
 
 class CheckXcodebuildStuckThread(threading.Thread):
@@ -142,8 +144,14 @@ class XcodebuildTestExecutor(object):
       output = io.BytesIO()
       for stdout_line in iter(process.stdout.readline, ''):
         if not test_started:
+          # Terminates the CheckXcodebuildStuckThread when test has started
+          # or XCTRunner.app has started.
+          # But XCTRunner.app start does not mean test start.
           if ios_constants.TEST_STARTED_SIGNAL in stdout_line:
             test_started = True
+            check_xcodebuild_stuck.Terminate()
+          if (self._test_type == ios_constants.TestType.XCUITEST and
+              ios_constants.XCTRUNNER_STARTED_SIGNAL in stdout_line):
             check_xcodebuild_stuck.Terminate()
         else:
           if self._succeeded_signal and self._succeeded_signal in stdout_line:
@@ -180,7 +188,7 @@ class XcodebuildTestExecutor(object):
 
           # The following error can be fixed by relaunching the test again.
           try:
-            if sim_log_path:
+            if sim_log_path and os.path.exists(sim_log_path):
               tail_sim_log = _ReadFileTailInShell(
                   sim_log_path, _TAIL_SIM_LOG_LINE)
               if (self._test_type == ios_constants.TestType.LOGIC_TEST and
@@ -189,6 +197,12 @@ class XcodebuildTestExecutor(object):
                   simulator_util.IsAppFailedToLaunchOnSim(tail_sim_log)):
                 raise ios_errors.SimError('')
             if _PROCESS_EXISTED_OR_CRASHED_ERROR in output_str:
+              raise ios_errors.SimError('')
+            if ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in output_str:
+              # Sleep random[0,2] seconds to avoid race condition. It is known
+              # issue that CoreSimulatorService connection will interrupte if
+              # two simulators booting at the same time.
+              time.sleep(random.uniform(0, 2))
               raise ios_errors.SimError('')
           except ios_errors.SimError:
             if i < max_attempts - 1:
@@ -227,6 +241,8 @@ class XcodebuildTestExecutor(object):
     if re.search(_APP_UNKNOWN_TO_FRONTEND_PATTERN, output_str):
       return True
     if _REQUEST_DENIED_ERROR in output_str:
+      return True
+    if _INIT_SIM_SERVICE_ERROR in output_str:
       return True
     return False
 

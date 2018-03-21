@@ -120,9 +120,7 @@ class Simulator(object):
           'Can not shut down the simulator in state CREATING.')
     logging.info('Shutting down simulator %s.', self.simulator_id)
     try:
-      subprocess.check_output(
-          ['xcrun', 'simctl', 'shutdown', self.simulator_id],
-          stderr=subprocess.STDOUT)
+      _RunSimctlCommand(['xcrun', 'simctl', 'shutdown', self.simulator_id])
     except subprocess.CalledProcessError as e:
       if 'Unable to shutdown device in current state: Shutdown' in e.output:
         logging.info('Simulator %s has already shut down.', self.simulator_id)
@@ -147,7 +145,7 @@ class Simulator(object):
           'Can only delete the simulator with state SHUTDOWN. The current '
           'state of simulator %s is %s.' % (self._simulator_id, sim_state))
     try:
-      subprocess.check_call(['xcrun', 'simctl', 'delete', self.simulator_id])
+      _RunSimctlCommand(['xcrun', 'simctl', 'delete', self.simulator_id])
     except subprocess.CalledProcessError as e:
       raise ios_errors.SimError(
           'Failed to delete simulator %s: %s' % (self.simulator_id, e.output))
@@ -185,9 +183,9 @@ class Simulator(object):
     """Gets the path of the app's Documents directory."""
     if xcode_info_util.GetXcodeVersionNumber() >= 830:
       try:
-        app_data_container = subprocess.check_output(
+        app_data_container = _RunSimctlCommand(
             ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
-             app_bundle_id, 'data']).strip()
+             app_bundle_id, 'data'])
         return os.path.join(app_data_container, 'Documents')
       except subprocess.CalledProcessError as e:
         raise ios_errors.SimError(
@@ -313,8 +311,8 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
                name, os_type, os_version, device_type)
   for i in range(0, _SIM_OPERATION_MAX_ATTEMPTS):
     try:
-      new_simulator_id = subprocess.check_output(
-          ['xcrun', 'simctl', 'create', name, device_type, runtime_id]).strip()
+      new_simulator_id = _RunSimctlCommand(
+          ['xcrun', 'simctl', 'create', name, device_type, runtime_id])
     except subprocess.CalledProcessError as e:
       raise ios_errors.SimError(
           'Failed to create simulator: %s' % e.output)
@@ -371,8 +369,7 @@ def GetSupportedSimDeviceTypes(os_type=None):
   #
   # See more examples in testdata/simctl_list_devicetypes.json
   sim_types_infos_json = ast.literal_eval(
-      subprocess.check_output(
-          ('xcrun', 'simctl', 'list', 'devicetypes', '-j')))
+      _RunSimctlCommand(('xcrun', 'simctl', 'list', 'devicetypes', '-j')))
   sim_types = []
   for sim_types_info in sim_types_infos_json['devicetypes']:
     sim_type = sim_types_info['name']
@@ -438,8 +435,7 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   #
   # See more examples in testdata/simctl_list_runtimes.json
   sim_runtime_infos_json = ast.literal_eval(
-      subprocess.check_output(
-          ('xcrun', 'simctl', 'list', 'runtimes', '-j')))
+      _RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
   sim_versions = []
   for sim_runtime_info in sim_runtime_infos_json['runtimes']:
     # Normally, the json does not contain unavailable runtimes. To be safe,
@@ -610,3 +606,14 @@ def IsXctestFailedToLaunchOnSim(sim_sys_log):
   """
   pattern = re.compile(_PATTERN_XCTEST_PROCESS_CRASH_ON_SIM)
   return pattern.search(sim_sys_log) is not None
+
+
+def _RunSimctlCommand(command):
+  """Runs simctl command."""
+  for i in range(2):
+    try:
+      return subprocess.check_output(command, stderr=subprocess.STDOUT).strip()
+    except subprocess.CalledProcessError as e:
+      if i == 0 and ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in e.output:
+        continue
+      raise e

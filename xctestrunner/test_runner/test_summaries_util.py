@@ -28,7 +28,9 @@ def GetTestSummariesPaths(derived_data_dir):
   return glob.glob('%s/Logs/Test/*_TestSummaries.plist' % derived_data_dir)
 
 
-def ParseTestSummaries(test_summaries_path, attachments_dir_path):
+def ParseTestSummaries(
+    test_summaries_path, attachments_dir_path,
+    delete_uitest_auto_screenshots=True):
   """Parse the TestSummaries.plist and structure the attachments' files.
 
   Only the screenshots file from failure test methods and .crash files will be
@@ -37,13 +39,17 @@ def ParseTestSummaries(test_summaries_path, attachments_dir_path):
   Args:
     test_summaries_path: string, the path of TestSummaries.plist file.
     attachments_dir_path: string, the path of Attachments directory.
+    delete_uitest_auto_screenshots: bool, whether deletes the auto screenshots.
   """
   test_summaries_plist = plist_util.Plist(test_summaries_path)
   tests_obj = test_summaries_plist.GetPlistField('TestableSummaries:0:Tests:0')
   # Store the required screenshots and crash files under temp directory first.
   # Then use the temp directory to replace the original Attachments directory.
+  # If delete_uitest_auto_screenshots is true, only move crash files to
+  # temp directory and the left screenshots will be deleted.
   temp_dir = tempfile.mkdtemp(dir=os.path.dirname(attachments_dir_path))
-  _ParseTestObject(tests_obj, attachments_dir_path, temp_dir)
+  if not delete_uitest_auto_screenshots:
+    _ParseTestObject(tests_obj, attachments_dir_path, temp_dir)
   for crash_file in glob.glob('%s/*.crash' % attachments_dir_path):
     shutil.move(crash_file, temp_dir)
   shutil.rmtree(attachments_dir_path)

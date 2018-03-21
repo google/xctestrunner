@@ -30,6 +30,9 @@ SUPPORTED_TEST_TYPES = [TestType.XCUITEST, TestType.XCTEST, TestType.LOGIC_TEST]
 SUPPORTED_SIM_OSS = [OS.IOS]
 
 TEST_STARTED_SIGNAL = 'Test Suite'
+XCTRUNNER_STARTED_SIGNAL = 'Running tests...'
+
+CORESIMULATOR_INTERRUPTED_ERROR = 'CoreSimulatorService connection interrupted'
 
 LAUNCH_OPTIONS_JSON_HELP = (
     """The path of json file, which contains options of launching test.
@@ -55,6 +58,14 @@ Available keys for the json:
     The specific test classes or test methods to run. Each item should be
     string and its format is Test-Class-Name[/Test-Method-Name]. It is supported
     in Xcode 8+.
+  skip_tests: array
+    The specific test classes or test methods to skip. Each item should be
+    string and its format is Test-Class-Name[/Test-Method-Name]. Logic test
+    does not support that.
+  uitest_auto_screenshots: bool
+    Whether captures screenshots automatically in ui test. If yes, will save the
+    screenshots when the test failed. By default, it is false. Prior Xcode 9,
+    this option does not work and the auto screenshot is enable by default.
   """)
 
 SIGNING_OPTIONS_JSON_HELP = (

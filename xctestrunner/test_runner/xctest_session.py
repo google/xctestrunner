@@ -26,6 +26,7 @@ from xctestrunner.shared import ios_errors
 from xctestrunner.shared import xcode_info_util
 from xctestrunner.test_runner import dummy_project
 from xctestrunner.test_runner import logic_test_util
+from xctestrunner.test_runner import runner_exit_codes
 from xctestrunner.test_runner import test_summaries_util
 from xctestrunner.test_runner import xctestrun
 
@@ -62,6 +63,8 @@ class XctestSession(object):
     self._logic_test_env_vars = None
     self._logic_test_args = None
     self._logic_tests_to_run = None
+    # The following fields are only for XCUITest.
+    self._disable_uitest_auto_screenshots = True
 
   def __enter__(self):
     return self
@@ -70,6 +73,8 @@ class XctestSession(object):
     """Deletes the temp directories."""
     self.Close()
 
+  # TODO(albertdai): Support bundle id as the value of app_under_test and
+  # test_bundle.
   def Prepare(self, app_under_test=None, test_bundle=None,
               xctestrun_file_path=None, test_type=None, signing_options=None):
     """Prepares the test session.
@@ -177,13 +182,24 @@ class XctestSession(object):
       self._xctestrun_obj.SetTestEnvVars(launch_options.get('env_vars'))
       self._xctestrun_obj.SetTestArgs(launch_options.get('args'))
       self._xctestrun_obj.SetTestsToRun(launch_options.get('tests_to_run'))
+      self._xctestrun_obj.SetSkipTests(launch_options.get('skip_tests'))
       self._xctestrun_obj.SetAppUnderTestEnvVars(
           launch_options.get('app_under_test_env_vars'))
       self._xctestrun_obj.SetAppUnderTestArgs(
           launch_options.get('app_under_test_args'))
+
+      if launch_options.get('uitest_auto_screenshots'):
+        self._disable_uitest_auto_screenshots = False
+        # By default, this SystemAttachmentLifetime field is in the generated
+        # xctestrun.plist.
+        try:
+          self._xctestrun_obj.DeleteXctestrunField('SystemAttachmentLifetime')
+        except ios_errors.PlistError:
+          pass
     elif self._dummy_project_obj:
       self._dummy_project_obj.SetEnvVars(launch_options.get('env_vars'))
       self._dummy_project_obj.SetArgs(launch_options.get('args'))
+      self._dummy_project_obj.SetSkipTests(launch_options.get('skip_tests'))
     elif self._logic_test_bundle:
       self._logic_test_env_vars = launch_options.get('env_vars')
       self._logic_test_args = launch_options.get('args')
@@ -214,11 +230,12 @@ class XctestSession(object):
         try:
           test_summaries_util.ParseTestSummaries(
               test_summaries_path,
-              os.path.join(self._output_dir, 'Logs/Test/Attachments'))
+              os.path.join(self._output_dir, 'Logs/Test/Attachments'),
+              True if self._disable_uitest_auto_screenshots else
+              exit_code == runner_exit_codes.EXITCODE.SUCCEEDED)
         except ios_errors.PlistError as e:
-          logging.warning(
-              'Failed to parse test summaries %s: %s',
-              test_summaries_path, e.message)
+          logging.warning('Failed to parse test summaries %s: %s',
+                          test_summaries_path, e.message)
       return exit_code
     elif self._dummy_project_obj:
       return self._dummy_project_obj.RunXcTest(
