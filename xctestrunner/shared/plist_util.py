@@ -64,6 +64,25 @@ class Plist(object):
     plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
     return _GetObjectWithField(plist_root_object, field)
 
+  def HasPlistField(self, field):
+    """Checks whether a specific field is in the .plist file.
+
+    Args:
+      field: string, the field consist of property key names delimited by
+        colons. List(array) items are specified by a zero-based integer index.
+        Examples
+          :CFBundleShortVersionString
+          :CFBundleDocumentTypes:2:CFBundleTypeExtensions
+
+    Returns:
+      whether the field is in the plist's file.
+    """
+    try:
+      self.GetPlistField(field)
+    except ios_errors.PlistError:
+      return False
+    return True
+
   def SetPlistField(self, field, value):
     """Set field with provided value in .plist file.
 

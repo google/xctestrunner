@@ -14,7 +14,6 @@
 
 """The utility class for provisioning profile."""
 
-import logging
 import os
 import pwd
 import shutil
@@ -29,16 +28,21 @@ from xctestrunner.shared import plist_util
 class ProvisiongProfile(object):
   """Handles the provisioning profile operations."""
 
-  def __init__(self, provisioning_profile_path, work_dir=None):
+  def __init__(self,
+               provisioning_profile_path,
+               work_dir=None,
+               keychain_path=None):
     """Initializes the provisioning profile.
 
     Args:
       provisioning_profile_path: string, the path of the provisioning profile.
       work_dir: string, the path of the root temp directory.
+      keychain_path: string, the path of the keychain to use.
     """
     self._provisioning_profile_path = provisioning_profile_path
     self._work_dir = work_dir
     self._decode_provisioning_profile_plist = None
+    self._keychain_path = keychain_path
     self._name = None
     self._uuid = None
 
@@ -76,11 +80,17 @@ class ProvisiongProfile(object):
     decode_provisioning_profile = os.path.join(
         self._work_dir,
         'decode_provision_%s.plist' % str(uuid.uuid1()))
-    command = ('security', 'cms', '-D', '-i', self._provisioning_profile_path,
-               '-o', decode_provisioning_profile)
-    logging.debug('Running command "%s"', ' '.join(command))
-    subprocess.Popen(command, stdout=subprocess.PIPE,
-                     stderr=subprocess.PIPE).communicate()
+    command = [
+        'security', 'cms', '-D', '-i', self._provisioning_profile_path, '-o',
+        decode_provisioning_profile
+    ]
+    if self._keychain_path:
+      command.extend(['-k', self._keychain_path])
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = process.communicate()
+    if process.poll() != 0:
+      raise ios_errors.ProvisioningProfileError(output)
     if not os.path.exists(decode_provisioning_profile):
       raise ios_errors.ProvisioningProfileError(
           'Failed to decode the provisioning profile.')

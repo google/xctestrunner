@@ -35,7 +35,7 @@ from xctestrunner.shared import xcode_info_util
 from xctestrunner.test_runner import xcodebuild_test_executor
 
 
-_DEFAULT_PERMS = 0777
+_DEFAULT_PERMS = 0o0777
 _DUMMYPROJECT_DIR_NAME = 'TestProject'
 _DUMMYPROJECT_XCODEPROJ_NAME = 'TestProject.xcodeproj'
 _DUMMYPROJECT_PBXPROJ_NAME = 'project.pbxproj'
@@ -50,10 +50,13 @@ _SIGNAL_XCODEBUILD_TEST_FAILED = '** TEST FAILED **'
 class DummyProject(object):
   """Handles a dummy project with prebuilt bundles."""
 
-  def __init__(self, app_under_test_dir, test_bundle_dir,
+  def __init__(self,
+               app_under_test_dir,
+               test_bundle_dir,
                sdk=ios_constants.SDK.IPHONESIMULATOR,
                test_type=ios_constants.TestType.XCUITEST,
-               work_dir=None):
+               work_dir=None,
+               keychain_path=None):
     """Initializes the DummyProject object.
 
     Args:
@@ -65,6 +68,7 @@ class DummyProject(object):
       test_type: string, test type of the test bundle. See supported test types
         in module shared.ios_constants.
       work_dir: string, work directory which contains run files.
+      keychain_path: string, path of preferred keychain to use.
     """
     self._app_under_test_dir = app_under_test_dir
     self._test_bundle_dir = test_bundle_dir
@@ -75,6 +79,7 @@ class DummyProject(object):
     else:
       self._work_dir = None
     self._dummy_project_path = None
+    self._keychain_path = keychain_path
     self._xcodeproj_dir_path = None
     self._pbxproj_file_path = None
     self._is_dummy_project_generated = False
@@ -190,13 +195,15 @@ class DummyProject(object):
                '-scheme', self._test_scheme,
                '-destination', 'id=' + device_id,
                '-derivedDataPath', derived_data_dir]
+    app_bundle_id = bundle_util.GetBundleId(self._app_under_test_dir)
     exit_code, _ = xcodebuild_test_executor.XcodebuildTestExecutor(
         command,
         succeeded_signal=_SIGNAL_XCODEBUILD_TEST_SUCCEEDED,
         failed_signal=_SIGNAL_XCODEBUILD_TEST_FAILED,
         sdk=self._sdk,
         test_type=self._test_type,
-        device_id=device_id).Execute(return_output=False)
+        device_id=device_id,
+        app_bundle_id=app_bundle_id).Execute(return_output=False)
     return exit_code
 
   def GenerateDummyProject(self):
@@ -207,8 +214,20 @@ class DummyProject(object):
     """
     if self._is_dummy_project_generated:
       return
-    logging.info('Generating dummy project.')
 
+    if self._work_dir:
+      self._dummy_project_path = os.path.join(self._work_dir,
+                                              _DUMMYPROJECT_DIR_NAME)
+      if os.path.exists(self._dummy_project_path):
+        logging.info('Skips generating dummy project which is generated.')
+        self._xcodeproj_dir_path = os.path.join(
+            self._dummy_project_path, _DUMMYPROJECT_XCODEPROJ_NAME)
+        self._pbxproj_file_path = os.path.join(
+            self._xcodeproj_dir_path, _DUMMYPROJECT_PBXPROJ_NAME)
+        self._is_dummy_project_generated = True
+        return
+
+    logging.info('Generating dummy project.')
     if self._work_dir:
       if not os.path.exists(self._work_dir):
         os.mkdir(self._work_dir)
@@ -317,7 +336,8 @@ class DummyProject(object):
           self._test_bundle_dir)
       embedded_provision = provisioning_profile.ProvisiongProfile(
           os.path.join(self._app_under_test_dir, 'embedded.mobileprovision'),
-          self._work_dir)
+          self._work_dir,
+          keychain_path=self._keychain_path)
       embedded_provision.Install()
       # Case 2)
       if embedded_provision.name.startswith('iOS Team Provisioning Profile: '):
@@ -332,12 +352,13 @@ class DummyProject(object):
     # Sets the app under test and test bundle.
     test_project_build_setting = pbxproj_objects[
         'TestProjectBuildConfig']['buildSettings']
-    app_under_test_name = os.path.basename(
-        self._app_under_test_dir).split('.')[0]
+    app_under_test_name = os.path.splitext(
+        os.path.basename(self._app_under_test_dir))[0]
     pbxproj_objects['AppUnderTestTarget']['name'] = app_under_test_name
     pbxproj_objects['AppUnderTestTarget']['productName'] = app_under_test_name
     test_project_build_setting['APP_UNDER_TEST_NAME'] = app_under_test_name
-    test_bundle_name = os.path.basename(self._test_bundle_dir).split('.')[0]
+    test_bundle_name = os.path.splitext(
+        os.path.basename(self._test_bundle_dir))[0]
     pbxproj_objects['XCUITestBundleTarget']['name'] = test_bundle_name
     pbxproj_objects['XCUITestBundleTarget']['productName'] = test_bundle_name
     test_project_build_setting['XCUITEST_BUNDLE_NAME'] = test_bundle_name
@@ -369,7 +390,8 @@ class DummyProject(object):
           self._app_under_test_dir)
       embedded_provision = provisioning_profile.ProvisiongProfile(
           os.path.join(self._app_under_test_dir, 'embedded.mobileprovision'),
-          self._work_dir)
+          self._work_dir,
+          keychain_path=self._keychain_path)
       embedded_provision.Install()
       # Case 2)
       if embedded_provision.name.startswith('iOS Team Provisioning Profile: '):
@@ -391,12 +413,13 @@ class DummyProject(object):
     # Sets the app under test and test bundle.
     test_project_build_setting = pbxproj_objects[
         'TestProjectBuildConfig']['buildSettings']
-    app_under_test_name = os.path.basename(
-        self._app_under_test_dir).split('.')[0]
+    app_under_test_name = os.path.splitext(
+        os.path.basename(self._app_under_test_dir))[0]
     pbxproj_objects['AppUnderTestTarget']['name'] = app_under_test_name
     pbxproj_objects['AppUnderTestTarget']['productName'] = app_under_test_name
     test_project_build_setting['APP_UNDER_TEST_NAME'] = app_under_test_name
-    test_bundle_name = os.path.basename(self._test_bundle_dir).split('.')[0]
+    test_bundle_name = os.path.splitext(
+        os.path.basename(self._test_bundle_dir))[0]
     pbxproj_objects['XCTestBundleTarget']['name'] = test_bundle_name
     pbxproj_objects['XCTestBundleTarget']['productName'] = test_bundle_name
     test_project_build_setting['XCTEST_BUNDLE_NAME'] = test_bundle_name
@@ -437,7 +460,9 @@ class DummyProject(object):
             'PROVISIONING_PROFILE_SPECIFIER'] = test_bundle_provisioning_profile
       else:
         profile_obj = provisioning_profile.ProvisiongProfile(
-            test_bundle_provisioning_profile, self._work_dir)
+            test_bundle_provisioning_profile,
+            self._work_dir,
+            keychain_path=self._keychain_path)
         profile_obj.Install()
         settings['PROVISIONING_PROFILE_SPECIFIER'] = profile_obj.name
       pbxproj_plist_obj.SetPlistField('objects', pbxproj_objects)

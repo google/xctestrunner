@@ -34,6 +34,7 @@ from xctestrunner.test_runner import runner_exit_codes
 
 _XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC = 150
 _SIM_TEST_MAX_ATTEMPTS = 3
+_DEVICE_TEST_MAX_ATTEMPTS = 2
 _TAIL_SIM_LOG_LINE = 200
 _BACKGROUND_TEST_RUNNER_ERROR = 'Failed to background test runner'
 _PROCESS_EXISTED_OR_CRASHED_ERROR = ('The process did launch, but has since '
@@ -43,6 +44,10 @@ _REQUEST_DENIED_ERROR = ('The request was denied by service delegate '
 _APP_UNKNOWN_TO_FRONTEND_PATTERN = re.compile(
     'Application ".*" is unknown to FrontBoard.')
 _INIT_SIM_SERVICE_ERROR = 'Failed to initiate service connection to simulator'
+_DEVICE_TYPE_WAS_NULL_PATTERN = re.compile(
+    'DTDeviceKit: deviceType from .* was NULL')
+_TOO_MANY_INSTANCES_ALREADY_RUNNING = ('Too many instances of this service are '
+                                       'already running.')
 
 
 class CheckXcodebuildStuckThread(threading.Thread):
@@ -87,8 +92,10 @@ class CheckXcodebuildStuckThread(threading.Thread):
 class XcodebuildTestExecutor(object):
   """A class to execute testing command by xcodebuild tool."""
 
+  # TODO(albertdai): change the argument succeeded_signal and failed_signal to
+  # be required.
   def __init__(self, command, sdk=None, test_type=None, device_id=None,
-               succeeded_signal=None, failed_signal=None):
+               succeeded_signal=None, failed_signal=None, app_bundle_id=None):
     """Initializes the XcodebuildTestExecutor object.
 
     The optional argument sdk, test_type and device_id can provide more
@@ -101,6 +108,7 @@ class XcodebuildTestExecutor(object):
       device_id: string, the id of the device to run test.
       succeeded_signal: string, the signal of command succeeded.
       failed_signal: string, the signal of command failed.
+      app_bundle_id: string, the bundle id of the app under test.
     """
     self._command = command
     self._sdk = sdk
@@ -108,6 +116,7 @@ class XcodebuildTestExecutor(object):
     self._device_id = device_id
     self._succeeded_signal = succeeded_signal
     self._failed_signal = failed_signal
+    self._app_bundle_id = app_bundle_id
 
   def Execute(self, return_output=True):
     """Executes the xcodebuild test command.
@@ -130,6 +139,8 @@ class XcodebuildTestExecutor(object):
       if self._device_id:
         sim_log_path = simulator_util.Simulator(
             self._device_id).simulator_system_log_path
+    elif self._sdk == ios_constants.SDK.IPHONEOS:
+      max_attempts = _DEVICE_TEST_MAX_ATTEMPTS
 
     test_started = False
     test_succeeded = False
@@ -150,8 +161,13 @@ class XcodebuildTestExecutor(object):
           if ios_constants.TEST_STARTED_SIGNAL in stdout_line:
             test_started = True
             check_xcodebuild_stuck.Terminate()
+          # Only terminate the check_xcodebuild_stuck thread when running on
+          # iphonesimulator device. When running on iphoneos device, the
+          # XCTRunner.app may not launch the test session sometimes
+          # (error rate < 1%).
           if (self._test_type == ios_constants.TestType.XCUITEST and
-              ios_constants.XCTRUNNER_STARTED_SIGNAL in stdout_line):
+              ios_constants.XCTRUNNER_STARTED_SIGNAL in stdout_line and
+              self._sdk == ios_constants.SDK.IPHONESIMULATOR):
             check_xcodebuild_stuck.Terminate()
         else:
           if self._succeeded_signal and self._succeeded_signal in stdout_line:
@@ -180,8 +196,21 @@ class XcodebuildTestExecutor(object):
         if check_xcodebuild_stuck.is_xcodebuild_stuck:
           return self._GetResultForXcodebuildStuck(output, return_output)
 
+        output_str = output.getvalue()
+        if self._sdk == ios_constants.SDK.IPHONEOS:
+          if (re.search(_DEVICE_TYPE_WAS_NULL_PATTERN, output_str) and
+              i < max_attempts - 1):
+            logging.warning(
+                'Failed to launch test on the device. Will relaunch again.')
+            continue
+          if _TOO_MANY_INSTANCES_ALREADY_RUNNING in output_str:
+            return (runner_exit_codes.EXITCODE.NEED_REBOOT_DEVICE,
+                    output_str if return_output else None)
+
         if self._sdk == ios_constants.SDK.IPHONESIMULATOR:
-          output_str = output.getvalue()
+          if self._NeedRebootSim(output_str):
+            return (runner_exit_codes.EXITCODE.NEED_REBOOT_DEVICE,
+                    output_str if return_output else None)
           if self._NeedRecreateSim(output_str):
             return (runner_exit_codes.EXITCODE.NEED_RECREATE_SIM,
                     output_str if return_output else None)
@@ -189,12 +218,15 @@ class XcodebuildTestExecutor(object):
           # The following error can be fixed by relaunching the test again.
           try:
             if sim_log_path and os.path.exists(sim_log_path):
+              # Sleeps short time. Then the tail simulator log can get more log.
+              time.sleep(0.5)
               tail_sim_log = _ReadFileTailInShell(
                   sim_log_path, _TAIL_SIM_LOG_LINE)
               if (self._test_type == ios_constants.TestType.LOGIC_TEST and
                   simulator_util.IsXctestFailedToLaunchOnSim(tail_sim_log) or
                   self._test_type != ios_constants.TestType.LOGIC_TEST and
-                  simulator_util.IsAppFailedToLaunchOnSim(tail_sim_log)):
+                  simulator_util.IsAppFailedToLaunchOnSim(tail_sim_log) or
+                  simulator_util.IsCoreSimulatorCrash(tail_sim_log)):
                 raise ios_errors.SimError('')
             if _PROCESS_EXISTED_OR_CRASHED_ERROR in output_str:
               raise ios_errors.SimError('')
@@ -204,15 +236,15 @@ class XcodebuildTestExecutor(object):
               # two simulators booting at the same time.
               time.sleep(random.uniform(0, 2))
               raise ios_errors.SimError('')
+            if (self._app_bundle_id and
+                not simulator_util.Simulator(self._device_id).IsAppInstalled(
+                    self._app_bundle_id)):
+              raise ios_errors.SimError('')
           except ios_errors.SimError:
             if i < max_attempts - 1:
               logging.warning(
                   'Failed to launch test on simulator. Will relaunch again.')
-              # Triggers the retry.
               continue
-            else:
-              return (runner_exit_codes.EXITCODE.TEST_NOT_START,
-                      output_str if return_output else None)
 
         return (runner_exit_codes.EXITCODE.TEST_NOT_START,
                 output_str if return_output else None)
@@ -233,11 +265,14 @@ class XcodebuildTestExecutor(object):
     return (runner_exit_codes.EXITCODE.TEST_NOT_START,
             output_str if return_output else None)
 
-  def _NeedRecreateSim(self, output_str):
-    """Checks if need recreate a new simulator."""
+  def _NeedRebootSim(self, output_str):
+    """Checks if need reboot the simulator."""
     if (self._test_type == ios_constants.TestType.XCUITEST and
         _BACKGROUND_TEST_RUNNER_ERROR in output_str):
       return True
+
+  def _NeedRecreateSim(self, output_str):
+    """Checks if need recreate a new simulator."""
     if re.search(_APP_UNKNOWN_TO_FRONTEND_PATTERN, output_str):
       return True
     if _REQUEST_DENIED_ERROR in output_str:

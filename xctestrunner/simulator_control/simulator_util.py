@@ -35,6 +35,7 @@ _SIMULATOR_STATES_MAPPING = {0: ios_constants.SimState.CREATING,
                              3: ios_constants.SimState.BOOTED}
 _PREFIX_RUNTIME_ID = 'com.apple.CoreSimulator.SimRuntime.'
 _SIM_OPERATION_MAX_ATTEMPTS = 3
+_SIMCTL_MAX_ATTEMPTS = 2
 _SIMULATOR_CREATING_TO_SHUTDOWN_TIMEOUT_SEC = 10
 _SIMULATOR_SHUTDOWN_TIMEOUT_SEC = 30
 _SIM_ERROR_RETRY_INTERVAL_SEC = 2
@@ -47,6 +48,9 @@ _PATTERN_XCTEST_PROCESS_CRASH_ON_SIM = (
     r'com\.apple\.CoreSimulator\.SimDevice\.[A-Z0-9\-]+(.+) '
     r'\((.+)xctest\[[0-9]+\]\): Service exited '
     '(due to (signal|Terminated|Killed|Abort trap)|with abnormal code)')
+_PATTERN_CORESIMULATOR_CRASH = (
+    r'com\.apple\.CoreSimulator\.SimDevice\.[A-Z0-9\-]+(.+) '
+    r'\(com\.apple\.CoreSimulator(.+)\): Service exited due to ')
 
 
 class Simulator(object):
@@ -121,12 +125,12 @@ class Simulator(object):
     logging.info('Shutting down simulator %s.', self.simulator_id)
     try:
       _RunSimctlCommand(['xcrun', 'simctl', 'shutdown', self.simulator_id])
-    except subprocess.CalledProcessError as e:
-      if 'Unable to shutdown device in current state: Shutdown' in e.output:
+    except ios_errors.SimError as e:
+      if 'Unable to shutdown device in current state: Shutdown' in str(e):
         logging.info('Simulator %s has already shut down.', self.simulator_id)
         return
       raise ios_errors.SimError(
-          'Failed to shutdown simulator %s: %s' % (self.simulator_id, e.output))
+          'Failed to shutdown simulator %s: %s' % (self.simulator_id, str(e)))
     self.WaitUntilStateShutdown()
     logging.info('Shut down simulator %s.', self.simulator_id)
 
@@ -146,9 +150,9 @@ class Simulator(object):
           'state of simulator %s is %s.' % (self._simulator_id, sim_state))
     try:
       _RunSimctlCommand(['xcrun', 'simctl', 'delete', self.simulator_id])
-    except subprocess.CalledProcessError as e:
+    except ios_errors.SimError as e:
       raise ios_errors.SimError(
-          'Failed to delete simulator %s: %s' % (self.simulator_id, e.output))
+          'Failed to delete simulator %s: %s' % (self.simulator_id, str(e)))
     # The delete command won't delete the simulator log directory.
     if os.path.exists(self.simulator_log_root_dir):
       shutil.rmtree(self.simulator_log_root_dir)
@@ -174,10 +178,10 @@ class Simulator(object):
       try:
         subprocess.Popen(
             command, stdout=stdout_file, stderr=subprocess.STDOUT)
-      except subprocess.CalledProcessError as e:
+      except ios_errors.SimError as e:
         raise ios_errors.SimError(
             'Failed to get log on simulator %s: %s'
-            % (self.simulator_id, e.output))
+            % (self.simulator_id, str(e)))
 
   def GetAppDocumentsPath(self, app_bundle_id):
     """Gets the path of the app's Documents directory."""
@@ -187,10 +191,10 @@ class Simulator(object):
             ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
              app_bundle_id, 'data'])
         return os.path.join(app_data_container, 'Documents')
-      except subprocess.CalledProcessError as e:
+      except ios_errors.SimError as e:
         raise ios_errors.SimError(
             'Failed to get data container of the app %s in simulator %s: %s',
-            app_bundle_id, self._simulator_id, e.output)
+            app_bundle_id, self._simulator_id, str(e))
 
     apps_dir = os.path.join(
         self.simulator_root_dir, 'data/Containers/Data/Application')
@@ -206,6 +210,16 @@ class Simulator(object):
     raise ios_errors.SimError(
         'Failed to get Documents directory of the app %s in simulator %s: %s',
         app_bundle_id, self._simulator_id)
+
+  def IsAppInstalled(self, app_bundle_id):
+    """Checks if the simulator has installed the app with given bundle id."""
+    try:
+      _RunSimctlCommand(
+          ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
+           app_bundle_id])
+      return True
+    except ios_errors.SimError:
+      return False
 
   def WaitUntilStateShutdown(self, timeout_sec=_SIMULATOR_SHUTDOWN_TIMEOUT_SEC):
     """Waits until the simulator state becomes SHUTDOWN.
@@ -313,9 +327,9 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
     try:
       new_simulator_id = _RunSimctlCommand(
           ['xcrun', 'simctl', 'create', name, device_type, runtime_id])
-    except subprocess.CalledProcessError as e:
+    except ios_errors.SimError as e:
       raise ios_errors.SimError(
-          'Failed to create simulator: %s' % e.output)
+          'Failed to create simulator: %s' % str(e))
     new_simulator_obj = Simulator(new_simulator_id)
     # After creating a new simulator, its state is CREATING. When the
     # simulator's state becomes SHUTDOWN, the simulator is created.
@@ -434,6 +448,7 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   #  }
   #
   # See more examples in testdata/simctl_list_runtimes.json
+  xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
   sim_runtime_infos_json = ast.literal_eval(
       _RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
   sim_versions = []
@@ -444,6 +459,17 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
       continue
     listed_os_type, listed_os_version = sim_runtime_info['name'].split(' ', 1)
     if listed_os_type == os_type:
+      if os_type == ios_constants.OS.IOS:
+        ios_major_version, ios_minor_version = listed_os_version.split('.', 1)
+        # Ingores the potential build version
+        ios_minor_version = ios_minor_version[0]
+        ios_version_num = int(ios_major_version) * 100 + int(
+            ios_minor_version) * 10
+        # One Xcode version always maps to one max simulator's iOS version.
+        # The rules is almost max_sim_ios_version <= xcode_version + 200.
+        # E.g., Xcode 8.3.1/8.3.3 maps to iOS 10.3, Xcode 7.3.1 maps to iOS 9.3.
+        if ios_version_num > xcode_version_num + 200:
+          continue
       sim_versions.append(listed_os_version)
   return sim_versions
 
@@ -608,12 +634,33 @@ def IsXctestFailedToLaunchOnSim(sim_sys_log):
   return pattern.search(sim_sys_log) is not None
 
 
+def IsCoreSimulatorCrash(sim_sys_log):
+  """Checks if CoreSimulator crashes.
+
+  Args:
+    sim_sys_log: string, the content of the simulator's system.log.
+
+  Returns:
+    True if the CoreSimulator crashes.
+  """
+  pattern = re.compile(_PATTERN_CORESIMULATOR_CRASH)
+  return pattern.search(sim_sys_log) is not None
+
+
 def _RunSimctlCommand(command):
   """Runs simctl command."""
-  for i in range(2):
-    try:
-      return subprocess.check_output(command, stderr=subprocess.STDOUT).strip()
-    except subprocess.CalledProcessError as e:
-      if i == 0 and ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in e.output:
+  for i in range(_SIMCTL_MAX_ATTEMPTS):
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if ios_constants.CORESIMULATOR_CHANGE_ERROR in stderr:
+      output = stdout
+    else:
+      output = '\n'.join([stdout, stderr])
+    output = output.strip()
+    if process.poll() != 0:
+      if (i < (_SIMCTL_MAX_ATTEMPTS - 1) and
+          ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in output):
         continue
-      raise e
+      raise ios_errors.SimError(output)
+    return output

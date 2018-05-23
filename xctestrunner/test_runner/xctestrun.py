@@ -37,7 +37,7 @@ _SIGNAL_TEST_WITHOUT_BUILDING_FAILED = '** TEST EXECUTE FAILED **'
 class XctestRun(object):
   """Handles running test by xctestrun."""
 
-  def __init__(self, xctestrun_file_path, test_type=None):
+  def __init__(self, xctestrun_file_path, test_type=None, aut_bundle_id=None):
     """Initializes the XctestRun object.
 
     If arg work_dir is provided, the original app under test file and test
@@ -47,6 +47,7 @@ class XctestRun(object):
       xctestrun_file_path: string, path of the xctest run file.
       test_type: string, test type of the test bundle. See supported test types
           in module xctestrunner.shared.ios_constants.
+      aut_bundle_id: string, the bundle id of app under test.
 
     Raises:
       IllegalArgumentError: when the sdk or test type is not supported.
@@ -57,6 +58,7 @@ class XctestRun(object):
     self._root_key = self._xctestrun_file_plist_obj.GetPlistField(
         None).keys()[0]
     self._test_type = test_type
+    self._aut_bundle_id = aut_bundle_id
 
   def SetTestEnvVars(self, env_vars):
     """Sets the additional environment variables of test's process.
@@ -161,7 +163,8 @@ class XctestRun(object):
         failed_signal=_SIGNAL_TEST_WITHOUT_BUILDING_FAILED,
         sdk=sdk,
         test_type=self.test_type,
-        device_id=device_id).Execute(return_output=False)
+        device_id=device_id,
+        app_bundle_id=self._aut_bundle_id).Execute(return_output=False)
     return exit_code
 
   @property
@@ -270,7 +273,7 @@ class XctestRunFactory(object):
     if self._sdk == ios_constants.SDK.IPHONEOS:
       self._signing_options = signing_options
     else:
-      if not signing_options:
+      if signing_options:
         logging.info(
             'The signing options only works on sdk iphoneos, but current sdk '
             'is %s', self._sdk)
@@ -300,8 +303,16 @@ class XctestRunFactory(object):
     """
     if self._xctestrun_obj:
       return self._xctestrun_obj
-    logging.info('Generating xctestrun file.')
+    if self._work_dir:
+      self._test_root_dir = os.path.join(self._work_dir, 'TEST_ROOT')
+      self._xctestrun_file_path = os.path.join(
+          self._test_root_dir, 'xctestrun.plist')
+      if os.path.exists(self._xctestrun_file_path):
+        logging.info('Skips generating xctestrun file which is generated.')
+        self._xctestrun_obj = XctestRun(self._xctestrun_file_path)
+        return self._xctestrun_obj
 
+    logging.info('Generating xctestrun file.')
     if self._work_dir:
       if not os.path.exists(self._work_dir):
         os.mkdir(self._work_dir)
@@ -372,9 +383,15 @@ class XctestRunFactory(object):
     """
     dummyproject_derived_data_dir = os.path.join(self._work_dir,
                                                  'dummyproject_derived_data')
+    keychain_path = (self._signing_options and
+                     self._signing_options.get('keychain_path')) or None
     with dummy_project.DummyProject(
-        self._app_under_test_dir, self._test_bundle_dir, self._sdk,
-        self._test_type, self._work_dir) as dummy_project_instance:
+        self._app_under_test_dir,
+        self._test_bundle_dir,
+        self._sdk,
+        self._test_type,
+        self._work_dir,
+        keychain_path=keychain_path) as dummy_project_instance:
       if (self._signing_options and
           self._signing_options.get('xctrunner_app_provisioning_profile')):
         dummy_project_instance.SetTestBundleProvisioningProfile(
@@ -448,7 +465,8 @@ class XctestRunFactory(object):
                 self._xctestrun_file_path)
 
     self._xctestrun_obj = XctestRun(
-        self._xctestrun_file_path, self._test_type)
+        self._xctestrun_file_path, self._test_type,
+        aut_bundle_id=bundle_util.GetBundleId(self._app_under_test_dir))
     self._xctestrun_obj.SetXctestrunField('TestHostPath', xctrunner_app_dir)
     self._xctestrun_obj.SetXctestrunField(
         'UITargetAppPath', self._app_under_test_dir)
@@ -469,9 +487,15 @@ class XctestRunFactory(object):
     """
     dummyproject_derived_data_dir = os.path.join(self._work_dir,
                                                  'dummyproject_derived_data')
+    keychain_path = (self._signing_options and
+                     self._signing_options.get('keychain_path')) or None
     with dummy_project.DummyProject(
-        self._app_under_test_dir, self._test_bundle_dir, self._sdk,
-        self._test_type, self._work_dir) as dummy_project_instance:
+        self._app_under_test_dir,
+        self._test_bundle_dir,
+        self._sdk,
+        self._test_type,
+        self._work_dir,
+        keychain_path=keychain_path) as dummy_project_instance:
       # Use TEST_ROOT as dummy project's build products dir.
       dummy_project_instance.BuildForTesting(
           self._test_root_dir, dummyproject_derived_data_dir)
@@ -513,7 +537,8 @@ class XctestRunFactory(object):
     shutil.move(generated_xctestrun_file_paths[0],
                 self._xctestrun_file_path)
     self._xctestrun_obj = XctestRun(
-        self._xctestrun_file_path, test_type=self._test_type)
+        self._xctestrun_file_path, test_type=self._test_type,
+        aut_bundle_id=bundle_util.GetBundleId(self._app_under_test_dir))
     self._xctestrun_obj.SetXctestrunField(
         'TestBundlePath', self._test_bundle_dir)
 
@@ -525,7 +550,8 @@ class XctestRunFactory(object):
     """
     self._xctestrun_file_path = os.path.join(
         self._test_root_dir, 'xctestrun.plist')
-    test_bundle_name = os.path.basename(self._test_bundle_dir).split('.')[0]
+    test_bundle_name = os.path.splitext(
+        os.path.basename(self._test_bundle_dir))[0]
     plist_util.Plist(self._xctestrun_file_path).SetPlistField(
         test_bundle_name, {})
     self._xctestrun_obj = XctestRun(

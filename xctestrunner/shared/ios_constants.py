@@ -33,6 +33,8 @@ TEST_STARTED_SIGNAL = 'Test Suite'
 XCTRUNNER_STARTED_SIGNAL = 'Running tests...'
 
 CORESIMULATOR_INTERRUPTED_ERROR = 'CoreSimulatorService connection interrupted'
+CORESIMULATOR_CHANGE_ERROR = ('CoreSimulator detected Xcode.app relocation or '
+                              'CoreSimulatorService version change.')
 
 LAUNCH_OPTIONS_JSON_HELP = (
     """The path of json file, which contains options of launching test.
@@ -81,4 +83,6 @@ Available keys for the json:
   xctrunner_app_enable_ui_file_sharing: bool
     Whether enable UIFileSharingEnabled field in the generated xctrunner app's
     Info.plist.
+  keychain_path: string
+    The specified keychain to be used.
   """)

@@ -145,11 +145,15 @@ def _AddSimulatorTestSubParser(subparsers):
       session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
 
       simulator_util.QuitSimulatorApp()
-      max_attempts = 2
+      max_attempts = 3
+      reboot_sim = False
       for i in range(max_attempts):
-        simulator_id, _, _, _ = simulator_util.CreateNewSimulator(
-            device_type=args.device_type, os_version=args.os_version,
-            name=args.new_simulator_name)
+        if not reboot_sim:
+          simulator_id, _, _, _ = simulator_util.CreateNewSimulator(
+              device_type=args.device_type, os_version=args.os_version,
+              name=args.new_simulator_name)
+        reboot_sim = False
+
         try:
           # Don't use command "{Xcode_developer_dir}Applications/ \
           # Simulator.app/Contents/MacOS/Simulator" to launch the Simulator.app.
@@ -159,11 +163,16 @@ def _AddSimulatorTestSubParser(subparsers):
           # Simulator.app will popup 'Unable to boot device in current state: \
           # Booted' dialog and may cause potential error.
           exit_code = session.RunTest(simulator_id)
-          if (i < max_attempts - 1 and
-              exit_code == runner_exit_codes.EXITCODE.NEED_RECREATE_SIM):
-            logging.warning(
-                'Will create a new simulator to retry running test.')
-            continue
+          if i < max_attempts - 1:
+            if exit_code == runner_exit_codes.EXITCODE.NEED_RECREATE_SIM:
+              logging.warning(
+                  'Will create a new simulator to retry running test.')
+              continue
+            if exit_code == runner_exit_codes.EXITCODE.NEED_REBOOT_DEVICE:
+              reboot_sim = True
+              logging.warning(
+                  'Will reboot the simulator to retry running test.')
+              continue
           return exit_code
         finally:
           # 1. Before Xcode 9, `xcodebuild test` will launch the Simulator.app
@@ -177,7 +186,8 @@ def _AddSimulatorTestSubParser(subparsers):
           # Can only delete the "SHUTDOWN" state simulator.
           simulator_obj.Shutdown()
           # Deletes the new simulator to avoid side effect.
-          simulator_obj.Delete()
+          if not reboot_sim:
+            simulator_obj.Delete()
 
   def _SimulatorTest(args):
     """The function of sub command `simulator_test`."""
