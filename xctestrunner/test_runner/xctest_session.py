@@ -55,6 +55,7 @@ class XctestSession(object):
     self._delete_work_dir = True
     self._output_dir = output_dir
     self._delete_output_dir = True
+    self._startup_timeout_sec = None
     self._xctestrun_obj = None
     self._dummy_project_obj = None
     self._prepared = False
@@ -150,7 +151,7 @@ class XctestSession(object):
       elif test_type == ios_constants.TestType.XCUITEST:
         raise ios_errors.IllegalArgumentError(
             'Only supports running XCUITest under Xcode 8+. '
-            'Current xcode version is %s',
+            'Current xcode version is %s' %
             xcode_info_util.GetXcodeVersionNumber())
       elif test_type == ios_constants.TestType.XCTEST:
         self._dummy_project_obj = dummy_project.DummyProject(
@@ -182,6 +183,7 @@ class XctestSession(object):
           'XctestSession.Prepare first.')
     if not launch_options:
       return
+    self._startup_timeout_sec = launch_options.get('startup_timeout_sec')
     if self._xctestrun_obj:
       self._xctestrun_obj.SetTestEnvVars(launch_options.get('env_vars'))
       self._xctestrun_obj.SetTestArgs(launch_options.get('args'))
@@ -228,7 +230,7 @@ class XctestSession(object):
 
     if self._xctestrun_obj:
       exit_code = self._xctestrun_obj.Run(
-          device_id, self._sdk, self._output_dir)
+          device_id, self._sdk, self._output_dir, self._startup_timeout_sec)
       for test_summaries_path in test_summaries_util.GetTestSummariesPaths(
           self._output_dir):
         try:
@@ -239,11 +241,12 @@ class XctestSession(object):
               exit_code == runner_exit_codes.EXITCODE.SUCCEEDED)
         except ios_errors.PlistError as e:
           logging.warning('Failed to parse test summaries %s: %s',
-                          test_summaries_path, e.message)
+                          test_summaries_path, str(e))
       return exit_code
     elif self._dummy_project_obj:
-      return self._dummy_project_obj.RunXcTest(
-          device_id, self._work_dir, self._output_dir)
+      return self._dummy_project_obj.RunXcTest(device_id, self._work_dir,
+                                               self._output_dir,
+                                               self._startup_timeout_sec)
     elif self._logic_test_bundle:
       return logic_test_util.RunLogicTestOnSim(
           device_id, self._logic_test_bundle, self._logic_test_env_vars,
@@ -383,7 +386,7 @@ def _FinalizeTestType(
       else:
         raise ios_errors.IllegalArgumentError(
             'It is only support running Logic Test on iOS simulator.'
-            'The sdk of testing device is %s.', sdk)
+            'The sdk of testing device is %s.' % sdk)
     elif (test_type == ios_constants.TestType.XCTEST and
           not app_under_test_dir and sdk == ios_constants.SDK.IPHONESIMULATOR):
       test_type = ios_constants.TestType.LOGIC_TEST
@@ -393,7 +396,7 @@ def _FinalizeTestType(
   if (not app_under_test_dir and
       test_type != ios_constants.TestType.LOGIC_TEST):
     raise ios_errors.IllegalArgumentError(
-        'The app under test is required in test type %s.', test_type)
+        'The app under test is required in test type %s.' % test_type)
   return test_type
 
 

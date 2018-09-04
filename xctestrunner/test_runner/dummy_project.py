@@ -149,7 +149,8 @@ class DummyProject(object):
       raise ios_errors.BuildFailureError('Failed to build the dummy project. '
                                          'Output is:\n%s' % output)
 
-  def RunXcTest(self, device_id, built_products_dir, derived_data_dir):
+  def RunXcTest(self, device_id, built_products_dir, derived_data_dir,
+                startup_timeout_sec):
     """Runs `xcodebuild test` with the dummy project.
 
     If app under test or test bundle are not in built_products_dir, will copy
@@ -159,6 +160,7 @@ class DummyProject(object):
       device_id: string, id of the device.
       built_products_dir: path of the built products dir in this build session.
       derived_data_dir: path of the derived data dir in this build session.
+      startup_timeout_sec: Seconds until the xcodebuild command is deemed stuck.
 
     Returns:
       A value of type runner_exit_codes.EXITCODE.
@@ -203,7 +205,8 @@ class DummyProject(object):
         sdk=self._sdk,
         test_type=self._test_type,
         device_id=device_id,
-        app_bundle_id=app_bundle_id).Execute(return_output=False)
+        app_bundle_id=app_bundle_id,
+        startup_timeout_sec=startup_timeout_sec).Execute(return_output=False)
     return exit_code
 
   def GenerateDummyProject(self):

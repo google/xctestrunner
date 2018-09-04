@@ -29,8 +29,7 @@ def GetTestSummariesPaths(derived_data_dir):
 
 
 def ParseTestSummaries(
-    test_summaries_path, attachments_dir_path,
-    delete_uitest_auto_screenshots=True):
+    test_summaries_path, attachments_dir_path, delete_uitest_auto_screenshots):
   """Parse the TestSummaries.plist and structure the attachments' files.
 
   Only the screenshots file from failure test methods and .crash files will be

@@ -62,8 +62,8 @@ def ExtractTestBundle(compressed_test_path, working_dir):
       {working_dir}/*/Payload/*.xctest or {working_dir}/*/*.xctest
 
   Raises:
-    BundleError: when bundle is not found in extracted directory or multiple
-      files are found in the extracted directory.
+    BundleError: when bundle is not found in extracted IPA or multiple files are
+      found in the extracted directory.
   """
   if not (compressed_test_path.endswith('.ipa') or
           compressed_test_path.endswith('.zip')):
@@ -161,37 +161,58 @@ def GetDevelopmentTeam(bundle_path):
                                output)
 
 
-def CodesignBundle(bundle_path):
+def CodesignBundle(bundle_path,
+                   entitlements_plist_path=None,
+                   identity=None):
   """Codesigns the bundle.
 
   Args:
     bundle_path: string, full path of bundle folder.
+    entitlements_plist_path: string, the path of the Entitlement to sign bundle.
+    identity: string, the identity to sign bundle.
 
   Raises:
     ios_errors.BundleError: when failed to codesign the bundle.
   """
-  identity = GetCodesignIdentity(bundle_path)
+  if identity is None:
+    identity = GetCodesignIdentity(bundle_path)
   try:
-    subprocess.check_output(
-        ['codesign', '-f', '--preserve-metadata=identifier,entitlements',
-         '--timestamp=none', '-s', identity, bundle_path])
+    if entitlements_plist_path is None:
+      subprocess.check_call(
+          [
+              'codesign', '-f', '--preserve-metadata=identifier,entitlements',
+              '--timestamp=none', '-s', identity, bundle_path
+          ],
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE)
+    else:
+      subprocess.check_call(
+          [
+              'codesign', '-f', '--entitlements', entitlements_plist_path,
+              '--timestamp=none', '-s', identity, bundle_path
+          ],
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE)
   except subprocess.CalledProcessError as e:
     raise ios_errors.BundleError(
-        'Failed to codesign the bundle %s: %s', bundle_path, e.output)
+        'Failed to codesign the bundle %s: %s' % (bundle_path, e.output))
 
 
-def EnableUIFileSharing(bundle_path):
+def EnableUIFileSharing(bundle_path, resigning=True):
   """Enable the UIFileSharingEnabled field in the bundle's Info.plist.
 
   Args:
     bundle_path: string, full path of bundle folder.
+    resigning: bool, whether resigning the bundle after enable
+               UIFileSharingEnabled.
 
   Raises:
     ios_errors.BundleError: when failed to codesign the bundle.
   """
   info_plist = plist_util.Plist(os.path.join(bundle_path, 'Info.plist'))
   info_plist.SetPlistField('UIFileSharingEnabled', True)
-  CodesignBundle(bundle_path)
+  if resigning:
+    CodesignBundle(bundle_path)
 
 
 def _ExtractBundleFile(target_dir, bundle_extension):

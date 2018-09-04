@@ -48,6 +48,7 @@ _DEVICE_TYPE_WAS_NULL_PATTERN = re.compile(
     'DTDeviceKit: deviceType from .* was NULL')
 _TOO_MANY_INSTANCES_ALREADY_RUNNING = ('Too many instances of this service are '
                                        'already running.')
+_LOST_CONNECTION_ERROR = 'Lost connection to testmanagerd'
 
 
 class CheckXcodebuildStuckThread(threading.Thread):
@@ -58,24 +59,24 @@ class CheckXcodebuildStuckThread(threading.Thread):
   timeout, this thread will also kill the given xcodebuild process.
   """
 
-  def __init__(self, xcodebuild_test_popen,
-               timeout_sec=_XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC):
+  def __init__(self, xcodebuild_test_popen, startup_timeout_sec):
     super(CheckXcodebuildStuckThread, self).__init__()
     self._xcodebuild_test_popen = xcodebuild_test_popen
     self._terminate = False
     self._is_xcodebuild_stuck = False
-    self._timeout_sec = timeout_sec
+    self._startup_timeout_sec = startup_timeout_sec
 
   def run(self):
     start_time = time.time()
     while (not self._terminate and
-           start_time + self._timeout_sec >= time.time() and
+           start_time + self._startup_timeout_sec >= time.time() and
            self._xcodebuild_test_popen.poll() is None):
       time.sleep(2)
-    if not self._terminate and start_time + self._timeout_sec < time.time():
+    if (not self._terminate and
+        start_time + self._startup_timeout_sec < time.time()):
       logging.warning(
           'The xcodebuild command got stuck and has not started test in %d. '
-          'Will kill the command directly.', self._timeout_sec)
+          'Will kill the command directly.', self._startup_timeout_sec)
       self._is_xcodebuild_stuck = True
       self._xcodebuild_test_popen.terminate()
 
@@ -94,8 +95,15 @@ class XcodebuildTestExecutor(object):
 
   # TODO(albertdai): change the argument succeeded_signal and failed_signal to
   # be required.
-  def __init__(self, command, sdk=None, test_type=None, device_id=None,
-               succeeded_signal=None, failed_signal=None, app_bundle_id=None):
+  def __init__(self,
+               command,
+               sdk=None,
+               test_type=None,
+               device_id=None,
+               succeeded_signal=None,
+               failed_signal=None,
+               app_bundle_id=None,
+               startup_timeout_sec=None):
     """Initializes the XcodebuildTestExecutor object.
 
     The optional argument sdk, test_type and device_id can provide more
@@ -109,6 +117,7 @@ class XcodebuildTestExecutor(object):
       succeeded_signal: string, the signal of command succeeded.
       failed_signal: string, the signal of command failed.
       app_bundle_id: string, the bundle id of the app under test.
+      startup_timeout_sec: int, seconds until the xcodebuild is deemed stuck.
     """
     self._command = command
     self._sdk = sdk
@@ -117,6 +126,8 @@ class XcodebuildTestExecutor(object):
     self._succeeded_signal = succeeded_signal
     self._failed_signal = failed_signal
     self._app_bundle_id = app_bundle_id
+    self._startup_timeout_sec = (
+        startup_timeout_sec or _XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC)
 
   def Execute(self, return_output=True):
     """Executes the xcodebuild test command.
@@ -150,7 +161,8 @@ class XcodebuildTestExecutor(object):
       process = subprocess.Popen(
           self._command, env=run_env, stdout=subprocess.PIPE,
           stderr=subprocess.STDOUT)
-      check_xcodebuild_stuck = CheckXcodebuildStuckThread(process)
+      check_xcodebuild_stuck = CheckXcodebuildStuckThread(
+          process, self._startup_timeout_sec)
       check_xcodebuild_stuck.start()
       output = io.BytesIO()
       for stdout_line in iter(process.stdout.readline, ''):
@@ -198,8 +210,8 @@ class XcodebuildTestExecutor(object):
 
         output_str = output.getvalue()
         if self._sdk == ios_constants.SDK.IPHONEOS:
-          if (re.search(_DEVICE_TYPE_WAS_NULL_PATTERN, output_str) and
-              i < max_attempts - 1):
+          if ((re.search(_DEVICE_TYPE_WAS_NULL_PATTERN, output_str) or
+               _LOST_CONNECTION_ERROR in output_str) and i < max_attempts - 1):
             logging.warning(
                 'Failed to launch test on the device. Will relaunch again.')
             continue
@@ -254,8 +266,7 @@ class XcodebuildTestExecutor(object):
   def _GetResultForXcodebuildStuck(self, output, return_output):
     """Gets the execution result for the xcodebuild stuck case."""
     error_message = ('xcodebuild command can not launch test on '
-                     'device/simulator in %ss.'
-                     % _XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC)
+                     'device/simulator in %ss.' % self._startup_timeout_sec)
     logging.error(error_message)
     output.write(error_message)
     output_str = output.getvalue()

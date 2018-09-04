@@ -68,6 +68,8 @@ Available keys for the json:
     Whether captures screenshots automatically in ui test. If yes, will save the
     screenshots when the test failed. By default, it is false. Prior Xcode 9,
     this option does not work and the auto screenshot is enable by default.
+  startup_timeout_seconds: int
+    Seconds until the xcodebuild command is deemed stuck.
   """)
 
 SIGNING_OPTIONS_JSON_HELP = (
@@ -77,7 +79,7 @@ The signing options only works when running on sdk iphoneos.
 
 Available keys for the json:
   xctrunner_app_provisioning_profile: string
-    The name/path of the provisioning profile of the generated xctrunner app.
+    The path of the provisioning profile of the generated xctrunner app.
     If this field is not set, will use app under test's provisioning profile
     for the generated xctrunner app.
   xctrunner_app_enable_ui_file_sharing: bool
