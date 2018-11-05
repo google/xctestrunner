@@ -14,7 +14,7 @@
 
 """The utility class for simulator."""
 
-import ast
+import json
 import logging
 import os
 import pwd
@@ -382,7 +382,7 @@ def GetSupportedSimDeviceTypes(os_type=None):
   # }
   #
   # See more examples in testdata/simctl_list_devicetypes.json
-  sim_types_infos_json = ast.literal_eval(
+  sim_types_infos_json = json.loads(
       _RunSimctlCommand(('xcrun', 'simctl', 'list', 'devicetypes', '-j')))
   sim_types = []
   for sim_types_info in sim_types_infos_json['devicetypes']:
@@ -436,20 +436,21 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   """
   # Example output:
   # {
-  #   "runtimes" : [
-  #     {
-  #       "buildversion" : "12B411",
-  #       "availability" : "(available)",
-  #       "name" : "iOS 8.1",
-  #       "identifier" : "com.apple.CoreSimulator.SimRuntime.iOS-8-1",
-  #       "version" : "8.1"
-  #     },
-  #   ]
-  #  }
-  #
+  # "runtimes" : [
+  #   {
+  #     "bundlePath" : "\/Applications\/Xcode10.app\/Contents\/Developer\/Platforms\/iPhoneOS.platform\/Developer\/Library\/CoreSimulator\/Profiles\/Runtimes\/iOS.simruntime",
+  #     "availabilityError" : "",
+  #     "buildversion" : "16A366",
+  #     "availability" : "(available)",
+  #     "isAvailable" : true,
+  #     "identifier" : "com.apple.CoreSimulator.SimRuntime.iOS-12-0",
+  #     "version" : "12.0",
+  #     "name" : "iOS 12.0"
+  #   }
+  # }
   # See more examples in testdata/simctl_list_runtimes.json
   xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
-  sim_runtime_infos_json = ast.literal_eval(
+  sim_runtime_infos_json = json.loads(
       _RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
   sim_versions = []
   for sim_runtime_info in sim_runtime_infos_json['runtimes']:
