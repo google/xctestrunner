@@ -243,9 +243,9 @@ class XcodebuildTestExecutor(object):
             if _PROCESS_EXISTED_OR_CRASHED_ERROR in output_str:
               raise ios_errors.SimError('')
             if ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in output_str:
-              # Sleep random[0,2] seconds to avoid race condition. It is known
-              # issue that CoreSimulatorService connection will interrupte if
-              # two simulators booting at the same time.
+              # Sleep random[0,2] seconds to avoid race condition. It is a known
+              # issue that CoreSimulatorService connection will be interrupted
+              # if two simulators are booting at the same time.
               time.sleep(random.uniform(0, 2))
               raise ios_errors.SimError('')
             if (self._app_bundle_id and

@@ -396,12 +396,13 @@ class XctestRunFactory(object):
     shutil.copytree(
         os.path.join(platform_library_path, 'Frameworks/XCTest.framework'),
         xctest_framework)
-    xct_automation_framework = os.path.join(runner_app_frameworks_dir,
-                                            'XCTAutomationSupport.framework')
-    shutil.copytree(
-        os.path.join(platform_library_path,
-                     'PrivateFrameworks/XCTAutomationSupport.framework'),
-        xct_automation_framework)
+    if xcode_info_util.GetXcodeVersionNumber() >= 900:
+      xct_automation_framework = os.path.join(runner_app_frameworks_dir,
+                                              'XCTAutomationSupport.framework')
+      shutil.copytree(
+          os.path.join(platform_library_path,
+                       'PrivateFrameworks/XCTAutomationSupport.framework'),
+          xct_automation_framework)
 
     self._PrepareUitestInRunerApp(uitest_runner_app)
 
@@ -451,8 +452,9 @@ class XctestRunFactory(object):
           self._app_under_test_dir)
       bundle_util.CodesignBundle(
           xctest_framework, identity=app_under_test_signing_identity)
-      bundle_util.CodesignBundle(
-          xct_automation_framework, identity=app_under_test_signing_identity)
+      if xcode_info_util.GetXcodeVersionNumber() >= 900:
+        bundle_util.CodesignBundle(
+            xct_automation_framework, identity=app_under_test_signing_identity)
       bundle_util.CodesignBundle(
           uitest_runner_app,
           entitlements_plist_path=entitlements_plist_path,
@@ -504,12 +506,11 @@ class XctestRunFactory(object):
         os.path.join(uitest_runner_app, uitest_runner_app_name))
 
     runner_app_info_plist_path = os.path.join(uitest_runner_app, 'Info.plist')
-    with open(runner_app_info_plist_path, 'r') as info_plist_file:
-      file_content = info_plist_file.read()
-      file_content = file_content.replace('WRAPPEDPRODUCTNAME',
-                                          uitest_runner_app_name)
-    with open(runner_app_info_plist_path, 'w') as info_plist_file:
-      info_plist_file.write(file_content)
+    info_plist = plist_util.Plist(runner_app_info_plist_path)
+    info_plist.SetPlistField('CFBundleName', uitest_runner_app_name)
+    info_plist.SetPlistField('CFBundleExecutable', uitest_runner_app_name)
+    info_plist.SetPlistField('CFBundleIdentifier',
+                             'com.apple.test.' + uitest_runner_app_name)
 
     return uitest_runner_app
 
