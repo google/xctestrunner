@@ -20,15 +20,15 @@ import shutil
 import subprocess
 import tempfile
 
-from xctestrunner.shared import bundle_util
-from xctestrunner.shared import ios_constants
-from xctestrunner.shared import ios_errors
-from xctestrunner.shared import xcode_info_util
-from xctestrunner.test_runner import dummy_project
-from xctestrunner.test_runner import logic_test_util
-from xctestrunner.test_runner import runner_exit_codes
-from xctestrunner.test_runner import test_summaries_util
-from xctestrunner.test_runner import xctestrun
+from shared import bundle_util
+from shared import ios_constants
+from shared import ios_errors
+from shared import xcode_info_util
+from test_runner import dummy_project
+from test_runner import logic_test_util
+from test_runner import runner_exit_codes
+from test_runner import test_summaries_util
+from test_runner import xctestrun
 
 
 class XctestSession(object):

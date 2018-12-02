@@ -17,9 +17,9 @@
 import subprocess
 import sys
 
-from xctestrunner.shared import ios_constants
-from xctestrunner.shared import xcode_info_util
-from xctestrunner.test_runner import runner_exit_codes
+from shared import ios_constants
+from shared import xcode_info_util
+from test_runner import runner_exit_codes
 
 _SIMCTL_ENV_VAR_PREFIX = 'SIMCTL_CHILD_'
 

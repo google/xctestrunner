@@ -21,8 +21,8 @@ import subprocess
 import tempfile
 import uuid
 
-from xctestrunner.shared import ios_errors
-from xctestrunner.shared import plist_util
+from shared import ios_errors
+from shared import plist_util
 
 
 class ProvisiongProfile(object):

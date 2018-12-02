@@ -20,7 +20,7 @@ import os
 import shutil
 import tempfile
 
-from xctestrunner.shared import plist_util
+from shared import plist_util
 
 
 def GetTestSummariesPaths(derived_data_dir):

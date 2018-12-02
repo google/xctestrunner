@@ -21,6 +21,7 @@ par_binary(
         ['test_runner/*.py'],
         exclude = ['test_runner/TestProject/**']
     ),
+    imports = ["."],
     main = 'test_runner/ios_test_runner.py',
     deps = [
         ':shared',
