@@ -264,14 +264,6 @@ class XctestSession(object):
       shutil.rmtree(self._output_dir)
 
 
-def GetSdk(device_id):
-  """Gets the sdk of the target device with the given device_id."""
-  if '-' in device_id:
-    return ios_constants.SDK.IPHONESIMULATOR
-  else:
-    return ios_constants.SDK.IPHONEOS
-
-
 def _PrepareBundles(working_dir, app_under_test_path, test_bundle_path):
   """Prepares the bundles in work directory.
 

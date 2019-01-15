@@ -20,12 +20,16 @@ def enum(**enums):
 
 
 SDK = enum(IPHONEOS='iphoneos', IPHONESIMULATOR='iphonesimulator')
+# It is consistent with bazel's apple platform:
+# https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/rules/apple/ApplePlatform.java
+PLATFORM = enum(IOS_DEVICE='ios_device', IOS_SIMULATOR='ios_simulator')
 OS = enum(IOS='iOS', WATCHOS='watchOS', TVOS='tvOS')
 TestType = enum(XCUITEST='xcuitest', XCTEST='xctest', LOGIC_TEST='logic_test')
 SimState = enum(CREATING='Creating', SHUTDOWN='Shutdown', BOOTED='Booted',
                 UNKNOWN='Unknown')
 
 SUPPORTED_SDKS = [SDK.IPHONESIMULATOR, SDK.IPHONEOS]
+SUPPORTED_PLATFORMS = [PLATFORM.IOS_SIMULATOR, PLATFORM.IOS_DEVICE]
 SUPPORTED_TEST_TYPES = [TestType.XCUITEST, TestType.XCTEST, TestType.LOGIC_TEST]
 SUPPORTED_SIM_OSS = [OS.IOS]
 

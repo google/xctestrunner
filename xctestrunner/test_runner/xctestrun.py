@@ -271,8 +271,10 @@ class XctestRunFactory(object):
     self._sdk = sdk
     self._test_type = test_type
     if self._sdk == ios_constants.SDK.IPHONEOS:
+      self._on_device = True
       self._signing_options = signing_options
     else:
+      self._on_device = False
       if signing_options:
         logging.info(
             'The signing options only works on sdk iphoneos, but current sdk '
@@ -373,7 +375,7 @@ class XctestRunFactory(object):
           'The test type %s is not supported. Supported test types are %s.'
           % (self._test_type, ios_constants.SUPPORTED_TEST_TYPES))
     if (self._test_type == ios_constants.TestType.LOGIC_TEST and
-        self._sdk != ios_constants.SDK.IPHONESIMULATOR):
+        self._on_device):
       raise ios_errors.IllegalArgumentError(
           'Only support running logic test on sdk iphonesimulator. '
           'Current sdk is %s' % self._sdk)
@@ -406,7 +408,7 @@ class XctestRunFactory(object):
 
     self._PrepareUitestInRunerApp(uitest_runner_app)
 
-    if self._sdk == ios_constants.SDK.IPHONEOS:
+    if self._on_device:
       runner_app_embedded_provision = os.path.join(
           uitest_runner_app, 'embedded.mobileprovision')
       use_customized_provision = False
@@ -448,23 +450,22 @@ class XctestRunFactory(object):
       plist_util.Plist(entitlements_plist_path).SetPlistField(
           None, entitlements_dict)
 
-      app_under_test_signing_identity = bundle_util.GetCodesignIdentity(
-          self._app_under_test_dir)
+      test_bundle_signing_identity = bundle_util.GetCodesignIdentity(
+          self._test_bundle_dir)
       bundle_util.CodesignBundle(
-          xctest_framework, identity=app_under_test_signing_identity)
+          xctest_framework, identity=test_bundle_signing_identity)
       if xcode_info_util.GetXcodeVersionNumber() >= 900:
         bundle_util.CodesignBundle(
-            xct_automation_framework, identity=app_under_test_signing_identity)
+            xct_automation_framework, identity=test_bundle_signing_identity)
       bundle_util.CodesignBundle(
           uitest_runner_app,
           entitlements_plist_path=entitlements_plist_path,
-          identity=app_under_test_signing_identity)
+          identity=test_bundle_signing_identity)
 
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
-    platform_name = ('iPhoneOS' if self._sdk == ios_constants.SDK.IPHONEOS else
-                     'iPhoneSimulator')
+    platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
     test_envs = {
         'DYLD_FRAMEWORK_PATH':
             '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/'
@@ -581,7 +582,7 @@ class XctestRunFactory(object):
                          'Developer/usr/lib/libXCTestBundleInject.dylib'),
             insert_libs_framework)
 
-    if self._sdk == ios_constants.SDK.IPHONEOS:
+    if self._on_device:
       app_under_test_signing_identity = bundle_util.GetCodesignIdentity(
           self._app_under_test_dir)
       bundle_util.CodesignBundle(
@@ -593,8 +594,7 @@ class XctestRunFactory(object):
 
     app_under_test_name = os.path.splitext(
         os.path.basename(self._app_under_test_dir))[0]
-    platform_name = ('iPhoneOS' if self._sdk == ios_constants.SDK.IPHONEOS else
-                     'iPhoneSimulator')
+    platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
     if xcode_info_util.GetXcodeVersionNumber() < 1000:
       dyld_insert_libs = ('__PLATFORMS__/%s.platform/Developer/Library/'
                           'PrivateFrameworks/IDEBundleInjection.framework/'

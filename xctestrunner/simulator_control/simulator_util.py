@@ -124,7 +124,7 @@ class Simulator(object):
           'Can not shut down the simulator in state CREATING.')
     logging.info('Shutting down simulator %s.', self.simulator_id)
     try:
-      _RunSimctlCommand(['xcrun', 'simctl', 'shutdown', self.simulator_id])
+      RunSimctlCommand(['xcrun', 'simctl', 'shutdown', self.simulator_id])
     except ios_errors.SimError as e:
       if 'Unable to shutdown device in current state: Shutdown' in str(e):
         logging.info('Simulator %s has already shut down.', self.simulator_id)
@@ -143,13 +143,16 @@ class Simulator(object):
     Raises:
       ios_errors.SimError: The simulator's state is not SHUTDOWN.
     """
-    sim_state = self.GetSimulatorState()
-    if sim_state != ios_constants.SimState.SHUTDOWN:
-      raise ios_errors.SimError(
-          'Can only delete the simulator with state SHUTDOWN. The current '
-          'state of simulator %s is %s.' % (self._simulator_id, sim_state))
+    # In Xcode 9+, simctl can delete Booted simulator. In prior of Xcode 9,
+    # we have to shutdown the simulator first before deleting it.
+    if xcode_info_util.GetXcodeVersionNumber() < 900:
+      sim_state = self.GetSimulatorState()
+      if sim_state != ios_constants.SimState.SHUTDOWN:
+        raise ios_errors.SimError(
+            'Can only delete the simulator with state SHUTDOWN. The current '
+            'state of simulator %s is %s.' % (self._simulator_id, sim_state))
     try:
-      _RunSimctlCommand(['xcrun', 'simctl', 'delete', self.simulator_id])
+      RunSimctlCommand(['xcrun', 'simctl', 'delete', self.simulator_id])
     except ios_errors.SimError as e:
       raise ios_errors.SimError(
           'Failed to delete simulator %s: %s' % (self.simulator_id, str(e)))
@@ -187,14 +190,14 @@ class Simulator(object):
     """Gets the path of the app's Documents directory."""
     if xcode_info_util.GetXcodeVersionNumber() >= 830:
       try:
-        app_data_container = _RunSimctlCommand(
+        app_data_container = RunSimctlCommand(
             ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
              app_bundle_id, 'data'])
         return os.path.join(app_data_container, 'Documents')
       except ios_errors.SimError as e:
         raise ios_errors.SimError(
-            'Failed to get data container of the app %s in simulator %s: %s',
-            app_bundle_id, self._simulator_id, str(e))
+            'Failed to get data container of the app %s in simulator %s: %s'%
+            (app_bundle_id, self._simulator_id, str(e)))
 
     apps_dir = os.path.join(
         self.simulator_root_dir, 'data/Containers/Data/Application')
@@ -208,13 +211,13 @@ class Simulator(object):
       if current_app_bundle_id == app_bundle_id:
         return os.path.join(apps_dir, sub_dir_name, 'Documents')
     raise ios_errors.SimError(
-        'Failed to get Documents directory of the app %s in simulator %s: %s',
-        app_bundle_id, self._simulator_id)
+        'Failed to get Documents directory of the app %s in simulator %s' %
+        (app_bundle_id, self._simulator_id))
 
   def IsAppInstalled(self, app_bundle_id):
     """Checks if the simulator has installed the app with given bundle id."""
     try:
-      _RunSimctlCommand(
+      RunSimctlCommand(
           ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
            app_bundle_id])
       return True
@@ -325,7 +328,7 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
                name, os_type, os_version, device_type)
   for i in range(0, _SIM_OPERATION_MAX_ATTEMPTS):
     try:
-      new_simulator_id = _RunSimctlCommand(
+      new_simulator_id = RunSimctlCommand(
           ['xcrun', 'simctl', 'create', name, device_type, runtime_id])
     except ios_errors.SimError as e:
       raise ios_errors.SimError(
@@ -383,7 +386,7 @@ def GetSupportedSimDeviceTypes(os_type=None):
   #
   # See more examples in testdata/simctl_list_devicetypes.json
   sim_types_infos_json = json.loads(
-      _RunSimctlCommand(('xcrun', 'simctl', 'list', 'devicetypes', '-j')))
+      RunSimctlCommand(('xcrun', 'simctl', 'list', 'devicetypes', '-j')))
   sim_types = []
   for sim_types_info in sim_types_infos_json['devicetypes']:
     sim_type = sim_types_info['name']
@@ -438,7 +441,9 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   # {
   # "runtimes" : [
   #   {
-  #     "bundlePath" : "\/Applications\/Xcode10.app\/Contents\/Developer\/Platforms\/iPhoneOS.platform\/Developer\/Library\/CoreSimulator\/Profiles\/Runtimes\/iOS.simruntime",
+  #     "bundlePath" : "\/Applications\/Xcode10.app\/Contents\/Developer\
+  #                     /Platforms\/iPhoneOS.platform\/Developer\/Library\
+  #                     /CoreSimulator\/Profiles\/Runtimes\/iOS.simruntime",
   #     "availabilityError" : "",
   #     "buildversion" : "16A366",
   #     "availability" : "(available)",
@@ -451,7 +456,7 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   # See more examples in testdata/simctl_list_runtimes.json
   xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
   sim_runtime_infos_json = json.loads(
-      _RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
+      RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
   sim_versions = []
   for sim_runtime_info in sim_runtime_infos_json['runtimes']:
     # Normally, the json does not contain unavailable runtimes. To be safe,
@@ -501,7 +506,7 @@ def GetLastSupportedSimOsVersion(os_type=ios_constants.OS.IOS,
   supported_os_versions = GetSupportedSimOsVersions(os_type)
   if not supported_os_versions:
     raise ios_errors.SimError(
-        'Can not find supported OS version of %s.', os_type)
+        'Can not find supported OS version of %s.' % os_type)
   if not device_type:
     return supported_os_versions[-1]
 
@@ -648,7 +653,7 @@ def IsCoreSimulatorCrash(sim_sys_log):
   return pattern.search(sim_sys_log) is not None
 
 
-def _RunSimctlCommand(command):
+def RunSimctlCommand(command):
   """Runs simctl command."""
   for i in range(_SIMCTL_MAX_ATTEMPTS):
     process = subprocess.Popen(
