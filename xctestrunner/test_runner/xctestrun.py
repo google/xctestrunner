@@ -480,7 +480,10 @@ class XctestRunFactory(object):
         'TestHostPath': uitest_runner_app,
         'UITargetAppPath': self._app_under_test_dir,
         'UserAttachmentLifetime': 'keepNever',
-        'TestingEnvironmentVariables': test_envs
+        'TestingEnvironmentVariables': test_envs,
+        'DependentProductPaths': [
+            self._app_under_test_dir,
+            self._test_bundle_dir],
     }
 
   def _GetUitestRunnerAppFromXcode(self, platform_library_path):
