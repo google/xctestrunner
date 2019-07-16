@@ -29,10 +29,11 @@ from xctestrunner.shared import plist_util
 from xctestrunner.shared import xcode_info_util
 from xctestrunner.simulator_control import simtype_profile
 
-
-_SIMULATOR_STATES_MAPPING = {0: ios_constants.SimState.CREATING,
-                             1: ios_constants.SimState.SHUTDOWN,
-                             3: ios_constants.SimState.BOOTED}
+_SIMULATOR_STATES_MAPPING = {
+    0: ios_constants.SimState.CREATING,
+    1: ios_constants.SimState.SHUTDOWN,
+    3: ios_constants.SimState.BOOTED
+}
 _PREFIX_RUNTIME_ID = 'com.apple.CoreSimulator.SimRuntime.'
 _SIM_OPERATION_MAX_ATTEMPTS = 3
 _SIMCTL_MAX_ATTEMPTS = 2
@@ -84,8 +85,8 @@ class Simulator(object):
     if not self._simulator_root_dir:
       home_dir = pwd.getpwuid(os.geteuid()).pw_dir
       self._simulator_root_dir = os.path.join(
-          '%s/Library/Developer/CoreSimulator/Devices/%s'
-          % (home_dir, self.simulator_id))
+          '%s/Library/Developer/CoreSimulator/Devices/%s' %
+          (home_dir, self.simulator_id))
     return self._simulator_root_dir
 
   @property
@@ -94,8 +95,7 @@ class Simulator(object):
     if not self._simulator_log_root_dir:
       home_dir = pwd.getpwuid(os.geteuid()).pw_dir
       self._simulator_log_root_dir = os.path.join(
-          '%s/Library/Logs/CoreSimulator/%s'
-          % (home_dir, self.simulator_id))
+          '%s/Library/Logs/CoreSimulator/%s' % (home_dir, self.simulator_id))
     return self._simulator_log_root_dir
 
   @property
@@ -129,13 +129,13 @@ class Simulator(object):
       if 'Unable to shutdown device in current state: Shutdown' in str(e):
         logging.info('Simulator %s has already shut down.', self.simulator_id)
         return
-      raise ios_errors.SimError(
-          'Failed to shutdown simulator %s: %s' % (self.simulator_id, str(e)))
+      raise ios_errors.SimError('Failed to shutdown simulator %s: %s' %
+                                (self.simulator_id, str(e)))
     self.WaitUntilStateShutdown()
     logging.info('Shut down simulator %s.', self.simulator_id)
 
   def Delete(self):
-    """Deletes the simulator.
+    """Deletes the simulator asynchronously.
 
     The simulator state should be SHUTDOWN when deleting it. Otherwise, it will
     raise exception.
@@ -151,15 +151,14 @@ class Simulator(object):
         raise ios_errors.SimError(
             'Can only delete the simulator with state SHUTDOWN. The current '
             'state of simulator %s is %s.' % (self._simulator_id, sim_state))
-    try:
-      RunSimctlCommand(['xcrun', 'simctl', 'delete', self.simulator_id])
-    except ios_errors.SimError as e:
-      raise ios_errors.SimError(
-          'Failed to delete simulator %s: %s' % (self.simulator_id, str(e)))
+    logging.info('Deleting simulator %s asynchronously.', self.simulator_id)
+    subprocess.Popen(['xcrun', 'simctl', 'delete', self.simulator_id],
+                     stdout=subprocess.PIPE,
+                     stderr=subprocess.PIPE,
+                     preexec_fn=os.setpgrp)
     # The delete command won't delete the simulator log directory.
     if os.path.exists(self.simulator_log_root_dir):
       shutil.rmtree(self.simulator_log_root_dir)
-    logging.info('Deleted simulator %s.', self.simulator_id)
     self._simulator_id = None
 
   def FetchLogToFile(self, output_file_path, start_time=None, end_time=None):
@@ -172,40 +171,39 @@ class Simulator(object):
     """
     command = [
         'xcrun', 'simctl', 'spawn', self._simulator_id, 'log', 'show',
-        '--style', 'syslog']
+        '--style', 'syslog'
+    ]
     if start_time:
       command.extend(('--start', start_time.strftime('%Y-%m-%d %H:%M:%S')))
     if end_time:
       command.extend(('--end', end_time.strftime('%Y-%m-%d %H:%M:%S')))
     with open(output_file_path, 'w') as stdout_file:
       try:
-        subprocess.Popen(
-            command, stdout=stdout_file, stderr=subprocess.STDOUT)
+        subprocess.Popen(command, stdout=stdout_file, stderr=subprocess.STDOUT)
       except ios_errors.SimError as e:
-        raise ios_errors.SimError(
-            'Failed to get log on simulator %s: %s'
-            % (self.simulator_id, str(e)))
+        raise ios_errors.SimError('Failed to get log on simulator %s: %s' %
+                                  (self.simulator_id, str(e)))
 
   def GetAppDocumentsPath(self, app_bundle_id):
     """Gets the path of the app's Documents directory."""
     if xcode_info_util.GetXcodeVersionNumber() >= 830:
       try:
-        app_data_container = RunSimctlCommand(
-            ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
-             app_bundle_id, 'data'])
+        app_data_container = RunSimctlCommand([
+            'xcrun', 'simctl', 'get_app_container', self._simulator_id,
+            app_bundle_id, 'data'
+        ])
         return os.path.join(app_data_container, 'Documents')
       except ios_errors.SimError as e:
         raise ios_errors.SimError(
-            'Failed to get data container of the app %s in simulator %s: %s'%
+            'Failed to get data container of the app %s in simulator %s: %s' %
             (app_bundle_id, self._simulator_id, str(e)))
 
-    apps_dir = os.path.join(
-        self.simulator_root_dir, 'data/Containers/Data/Application')
+    apps_dir = os.path.join(self.simulator_root_dir,
+                            'data/Containers/Data/Application')
     for sub_dir_name in os.listdir(apps_dir):
       container_manager_plist = plist_util.Plist(
-          os.path.join(
-              apps_dir, sub_dir_name,
-              '.com.apple.mobile_container_manager.metadata.plist'))
+          os.path.join(apps_dir, sub_dir_name,
+                       '.com.apple.mobile_container_manager.metadata.plist'))
       current_app_bundle_id = container_manager_plist.GetPlistField(
           'MCMMetadataIdentifier')
       if current_app_bundle_id == app_bundle_id:
@@ -217,9 +215,10 @@ class Simulator(object):
   def IsAppInstalled(self, app_bundle_id):
     """Checks if the simulator has installed the app with given bundle id."""
     try:
-      RunSimctlCommand(
-          ['xcrun', 'simctl', 'get_app_container', self._simulator_id,
-           app_bundle_id])
+      RunSimctlCommand([
+          'xcrun', 'simctl', 'get_app_container', self._simulator_id,
+          app_bundle_id
+      ])
       return True
     except ios_errors.SimError:
       return False
@@ -228,8 +227,8 @@ class Simulator(object):
     """Waits until the simulator state becomes SHUTDOWN.
 
     Args:
-      timeout_sec: int, timeout of waiting simulator state for becoming
-          SHUTDOWN in seconds.
+      timeout_sec: int, timeout of waiting simulator state for becoming SHUTDOWN
+        in seconds.
 
     Raises:
       ios_errors.SimError: when it is timeout to wait the simulator state
@@ -240,8 +239,8 @@ class Simulator(object):
       if self.GetSimulatorState() == ios_constants.SimState.SHUTDOWN:
         return
       time.sleep(_SIM_CHECK_STATE_INTERVAL_SEC)
-    raise ios_errors.SimError(
-        'Timeout to wait for simulator shutdown in %ss.' % timeout_sec)
+    raise ios_errors.SimError('Timeout to wait for simulator shutdown in %ss.' %
+                              timeout_sec)
 
   def GetSimulatorState(self):
     """Gets the state of the simulator in real time.
@@ -256,14 +255,13 @@ class Simulator(object):
       return ios_constants.SimState.CREATING
     state_num = self.device_plist_object.GetPlistField('state')
     if state_num not in _SIMULATOR_STATES_MAPPING.keys():
-      logging.warning(
-          'The state %s of simulator %s can not be recognized.',
-          state_num, self.simulator_id)
+      logging.warning('The state %s of simulator %s can not be recognized.',
+                      state_num, self.simulator_id)
       return ios_constants.SimState.UNKNOWN
     return _SIMULATOR_STATES_MAPPING[state_num]
 
 
-def CreateNewSimulator(device_type=None, os_version=None, name=None):
+def CreateNewSimulator(device_type=None, os_version=None, name_prefix=None):
   """Creates a new simulator according to arguments.
 
   If neither device_type nor os_version is given, will use the latest iOS
@@ -279,13 +277,12 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
 
   Args:
     device_type: string, device type of the new simulator. The value corresponds
-        to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6,
-        iPad Air, etc.
+      to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6, iPad
+      Air, etc.
     os_version: string, OS version of the new simulator. The format is
-        {major}.{minor}, such as 9.3, 10.2.
-    name: string, name of the new simulator. By default, it will be the value of
-        concatenating device_type with os_version.
-        E.g., NEW_IPHONE_6_PLUS_10_2.
+      {major}.{minor}, such as 9.3, 10.2.
+    name_prefix: string, name prefix of the new simulator. By default, it is
+      "New".
 
   Returns:
      a tuple with four items:
@@ -304,8 +301,7 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
     _ValidateSimulatorType(device_type)
     os_type = GetOsType(device_type)
   if not os_version:
-    os_version = GetLastSupportedSimOsVersion(
-        os_type, device_type=device_type)
+    os_version = GetLastSupportedSimOsVersion(os_type, device_type=device_type)
   else:
     supported_sim_os_versions = GetSupportedSimOsVersions(os_type)
     if os_version not in supported_sim_os_versions:
@@ -316,23 +312,21 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
     device_type = GetLastSupportedIphoneSimType(os_version)
   else:
     _ValidateSimulatorTypeWithOsVersion(device_type, os_version)
-  if not name:
-    # Example: NEW_IPHONE6S_PLUS_10_3
-    name = 'NEW_%s_%s' % (device_type, os_version)
-    name = name.replace('.', '_').replace(' ', '_').upper()
+  if not name_prefix:
+    name_prefix = 'New'
+  name = '%s-%s-%s' % (name_prefix, device_type, os_version)
 
   # Example
   # Runtime ID of iOS 10.2: com.apple.CoreSimulator.SimRuntime.iOS-10-2
   runtime_id = _PREFIX_RUNTIME_ID + os_type + '-' + os_version.replace('.', '-')
-  logging.info('Creating a new simulator:\nName: %s\nOS: %s %s\nType: %s',
-               name, os_type, os_version, device_type)
+  logging.info('Creating a new simulator:\nName: %s\nOS: %s %s\nType: %s', name,
+               os_type, os_version, device_type)
   for i in range(0, _SIM_OPERATION_MAX_ATTEMPTS):
     try:
       new_simulator_id = RunSimctlCommand(
           ['xcrun', 'simctl', 'create', name, device_type, runtime_id])
     except ios_errors.SimError as e:
-      raise ios_errors.SimError(
-          'Failed to create simulator: %s' % str(e))
+      raise ios_errors.SimError('Failed to create simulator: %s' % str(e))
     new_simulator_obj = Simulator(new_simulator_id)
     # After creating a new simulator, its state is CREATING. When the
     # simulator's state becomes SHUTDOWN, the simulator is created.
@@ -342,8 +336,8 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
       logging.info('Created new simulator %s.', new_simulator_id)
       return new_simulator_id, device_type, os_version, name
     except ios_errors.SimError as error:
-      logging.debug('Failed to create simulator %s: %s.',
-                    new_simulator_id, error)
+      logging.debug('Failed to create simulator %s: %s.', new_simulator_id,
+                    error)
       logging.debug('Deleted half-created simulator %s.', new_simulator_id)
       new_simulator_obj.Delete()
       if i != _SIM_OPERATION_MAX_ATTEMPTS - 1:
@@ -353,8 +347,8 @@ def CreateNewSimulator(device_type=None, os_version=None, name=None):
         # wrong in CoreSimulatorService. Sleeps a short interval(2s) can help
         # reduce flakiness.
         time.sleep(_SIM_ERROR_RETRY_INTERVAL_SEC)
-  raise ios_errors.SimError('Failed to create simulator in %d attempts.'
-                            % _SIM_OPERATION_MAX_ATTEMPTS)
+  raise ios_errors.SimError('Failed to create simulator in %d attempts.' %
+                            _SIM_OPERATION_MAX_ATTEMPTS)
 
 
 def GetSupportedSimDeviceTypes(os_type=None):
@@ -406,7 +400,7 @@ def GetLastSupportedIphoneSimType(os_version):
 
   Args:
     os_version: string, OS version of the new simulator. The format is
-        {major}.{minor}, such as 9.3, 10.2.
+      {major}.{minor}, such as 9.3, 10.2.
 
   Returns:
     a string, the last supported iPhone simulator type.
@@ -423,8 +417,7 @@ def GetLastSupportedIphoneSimType(os_version):
           simtype_profile.SimTypeProfile(sim_type).min_os_version)
       if os_version_float >= min_os_version_float:
         return sim_type
-  raise ios_errors.SimError(
-      'Can not find supported iPhone simulator type.')
+  raise ios_errors.SimError('Can not find supported iPhone simulator type.')
 
 
 def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
@@ -461,8 +454,13 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   for sim_runtime_info in sim_runtime_infos_json['runtimes']:
     # Normally, the json does not contain unavailable runtimes. To be safe,
     # also checks the 'availability' field.
-    if sim_runtime_info['availability'].find('unavailable') >= 0:
+    if 'availability' in sim_runtime_info and sim_runtime_info[
+        'availability'].find('unavailable') >= 0:
       continue
+    elif 'isAvailable' in sim_runtime_info and not sim_runtime_info[
+        'isAvailable']:
+      continue
+
     listed_os_type, listed_os_version = sim_runtime_info['name'].split(' ', 1)
     if listed_os_type == os_type:
       if os_type == ios_constants.OS.IOS:
@@ -492,8 +490,8 @@ def GetLastSupportedSimOsVersion(os_type=ios_constants.OS.IOS,
     os_type: shared.ios_constants.OS, OS type of simulator, such as iOS,
       watchOS, tvOS.
     device_type: string, device type of the new simulator. The value corresponds
-        to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6,
-        iPad Air, etc.
+      to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6, iPad
+      Air, etc.
 
   Returns:
     a string, the last supported version.
@@ -505,8 +503,8 @@ def GetLastSupportedSimOsVersion(os_type=ios_constants.OS.IOS,
   """
   supported_os_versions = GetSupportedSimOsVersions(os_type)
   if not supported_os_versions:
-    raise ios_errors.SimError(
-        'Can not find supported OS version of %s.' % os_type)
+    raise ios_errors.SimError('Can not find supported OS version of %s.' %
+                              os_type)
   if not device_type:
     return supported_os_versions[-1]
 
@@ -519,8 +517,8 @@ def GetLastSupportedSimOsVersion(os_type=ios_constants.OS.IOS,
   if not supported_os_versions:
     raise ios_errors.IllegalArgumentError(
         'The supported OS version %s can not match simulator type %s. Because '
-        'its max OS version is %s'
-        % (supported_os_versions, device_type, simtype_max_os_version_float))
+        'its max OS version is %s' %
+        (supported_os_versions, device_type, simtype_max_os_version_float))
 
 
 def GetOsType(device_type):
@@ -532,8 +530,8 @@ def GetOsType(device_type):
 
   Args:
     device_type: string, device type of the new simulator. The value corresponds
-        to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6,
-        iPad Air, etc.
+      to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6, iPad
+      Air, etc.
 
   Returns:
     shared.ios_constants.OS.
@@ -549,8 +547,8 @@ def GetOsType(device_type):
   if 'Watch' in device_type:
     return ios_constants.OS.WATCHOS
   raise ios_errors.IllegalArgumentError(
-      'Failed to recognize the os type for simulator device type %s.'
-      % device_type)
+      'Failed to recognize the os type for simulator device type %s.' %
+      device_type)
 
 
 def _ValidateSimulatorType(device_type):
@@ -558,8 +556,8 @@ def _ValidateSimulatorType(device_type):
 
   Args:
     device_type: string, device type of the new simulator. The value corresponds
-        to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6,
-        iPad Air, etc.
+      to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6, iPad
+      Air, etc.
 
   Raises:
     ios_errors.IllegalArgumentError: when the given simulator device type is
@@ -577,10 +575,10 @@ def _ValidateSimulatorTypeWithOsVersion(device_type, os_version):
 
   Args:
     device_type: string, device type of the new simulator. The value corresponds
-        to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6,
-        iPad Air, etc.
+      to the output of `xcrun simctl list devicetypes`. E.g., iPhone 6, iPad
+      Air, etc.
     os_version: string, OS version of the new simulator. The format is
-        {major}.{minor}, such as 9.3, 10.2.
+      {major}.{minor}, such as 9.3, 10.2.
 
   Raises:
     ios_errors.IllegalArgumentError: when the given simulator device type can
@@ -591,13 +589,13 @@ def _ValidateSimulatorTypeWithOsVersion(device_type, os_version):
   min_os_version_float = float(sim_profile.min_os_version)
   if min_os_version_float > os_version_float:
     raise ios_errors.IllegalArgumentError(
-        'The min OS version of %s is %s. But current OS version is %s'
-        % (device_type, min_os_version_float, os_version))
+        'The min OS version of %s is %s. But current OS version is %s' %
+        (device_type, min_os_version_float, os_version))
   max_os_version_float = float(sim_profile.max_os_version)
   if max_os_version_float < os_version_float:
     raise ios_errors.IllegalArgumentError(
-        'The max OS version of %s is %s. But current OS version is %s'
-        % (device_type, max_os_version_float, os_version))
+        'The max OS version of %s is %s. But current OS version is %s' %
+        (device_type, max_os_version_float, os_version))
 
 
 def QuitSimulatorApp():
@@ -607,7 +605,8 @@ def QuitSimulatorApp():
   else:
     simulator_name = 'iOS Simulator'
   subprocess.Popen(['killall', simulator_name],
-                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT)
 
 
 def IsAppFailedToLaunchOnSim(sim_sys_log, app_bundle_id=''):

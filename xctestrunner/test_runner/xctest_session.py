@@ -56,6 +56,7 @@ class XctestSession(object):
     self._output_dir = output_dir
     self._delete_output_dir = True
     self._startup_timeout_sec = None
+    self._destination_timeout_sec = None
     self._xctestrun_obj = None
     self._dummy_project_obj = None
     self._prepared = False
@@ -184,6 +185,8 @@ class XctestSession(object):
     if not launch_options:
       return
     self._startup_timeout_sec = launch_options.get('startup_timeout_sec')
+    self._destination_timeout_sec = launch_options.get(
+        'destination_timeout_sec')
     if self._xctestrun_obj:
       self._xctestrun_obj.SetTestEnvVars(launch_options.get('env_vars'))
       self._xctestrun_obj.SetTestArgs(launch_options.get('args'))
@@ -229,8 +232,10 @@ class XctestSession(object):
           'XctestSession.Prepare first.')
 
     if self._xctestrun_obj:
-      exit_code = self._xctestrun_obj.Run(
-          device_id, self._sdk, self._output_dir, self._startup_timeout_sec)
+      exit_code = self._xctestrun_obj.Run(device_id, self._sdk,
+                                          self._output_dir,
+                                          self._startup_timeout_sec,
+                                          self._destination_timeout_sec)
       for test_summaries_path in test_summaries_util.GetTestSummariesPaths(
           self._output_dir):
         try:

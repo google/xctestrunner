@@ -74,6 +74,8 @@ Available keys for the json:
     this option does not work and the auto screenshot is enable by default.
   startup_timeout_seconds: int
     Seconds until the xcodebuild command is deemed stuck.
+  destination_timeout_sec: int
+    Wait for the given seconds while searching for the destination device.
   """)
 
 SIGNING_OPTIONS_JSON_HELP = (

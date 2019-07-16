@@ -139,7 +139,8 @@ class XctestRun(object):
       return
     self.SetXctestrunField('SkipTestIdentifiers', skip_tests)
 
-  def Run(self, device_id, sdk, derived_data_dir, startup_timeout_sec):
+  def Run(self, device_id, sdk, derived_data_dir, startup_timeout_sec,
+          destination_timeout_sec=None):
     """Runs the test with generated xctestrun file in the specific device.
 
     Args:
@@ -147,6 +148,8 @@ class XctestRun(object):
       sdk: shared.ios_constants.SDK, sdk of the device.
       derived_data_dir: path of derived data directory of this test session.
       startup_timeout_sec: seconds until the xcodebuild command is deemed stuck.
+      destination_timeout_sec: Wait for the given seconds while searching for
+          the destination device.
 
     Returns:
       A value of type runner_exit_codes.EXITCODE.
@@ -156,6 +159,8 @@ class XctestRun(object):
                '-xctestrun', self._xctestrun_file_path,
                '-destination', 'id=%s' % device_id,
                '-derivedDataPath', derived_data_dir]
+    if destination_timeout_sec:
+      command.extend(['-destination-timeout', str(destination_timeout_sec)])
     exit_code, _ = xcodebuild_test_executor.XcodebuildTestExecutor(
         command,
         succeeded_signal=_SIGNAL_TEST_WITHOUT_BUILDING_SUCCEEDED,
@@ -164,7 +169,8 @@ class XctestRun(object):
         test_type=self.test_type,
         device_id=device_id,
         app_bundle_id=self._aut_bundle_id,
-        startup_timeout_sec=startup_timeout_sec).Execute(return_output=False)
+        startup_timeout_sec=startup_timeout_sec).Execute(
+            return_output=False)
     return exit_code
 
   @property
@@ -562,28 +568,41 @@ class XctestRunFactory(object):
       os.mkdir(app_under_test_frameworks_dir)
     xctest_framework = os.path.join(app_under_test_frameworks_dir,
                                     'XCTest.framework')
-    if not os.path.exists(xctest_framework):
-      shutil.copytree(
-          os.path.join(platform_path,
-                       'Developer/Library/Frameworks/XCTest.framework'),
-          xctest_framework)
+    if os.path.exists(xctest_framework):
+      shutil.rmtree(xctest_framework)
+    shutil.copytree(
+        os.path.join(platform_path,
+                     'Developer/Library/Frameworks/XCTest.framework'),
+        xctest_framework)
     if xcode_info_util.GetXcodeVersionNumber() < 1000:
-      insert_libs_framework = os.path.join(app_under_test_frameworks_dir,
-                                           'IDEBundleInjection.framework')
-      if not os.path.exists(insert_libs_framework):
-        shutil.copytree(
-            os.path.join(
-                platform_path, 'Developer/Library/PrivateFrameworks/'
-                'IDEBundleInjection.framework'),
-            insert_libs_framework)
+      bundle_injection_lib = os.path.join(app_under_test_frameworks_dir,
+                                          'IDEBundleInjection.framework')
+      if os.path.exists(bundle_injection_lib):
+        shutil.rmtree(bundle_injection_lib)
+      shutil.copytree(
+          os.path.join(
+              platform_path, 'Developer/Library/PrivateFrameworks/'
+              'IDEBundleInjection.framework'),
+          bundle_injection_lib)
     else:
-      insert_libs_framework = os.path.join(app_under_test_frameworks_dir,
-                                           'libXCTestBundleInject.dylib')
-      if not os.path.exists(insert_libs_framework):
-        shutil.copyfile(
-            os.path.join(platform_path,
-                         'Developer/usr/lib/libXCTestBundleInject.dylib'),
-            insert_libs_framework)
+      bundle_injection_lib = os.path.join(app_under_test_frameworks_dir,
+                                          'libXCTestBundleInject.dylib')
+      if os.path.exists(bundle_injection_lib):
+        os.remove(bundle_injection_lib)
+      shutil.copyfile(
+          os.path.join(platform_path,
+                       'Developer/usr/lib/libXCTestBundleInject.dylib'),
+          bundle_injection_lib)
+    xct_automation_framework = None
+    if xcode_info_util.GetXcodeVersionNumber() >= 1100:
+      xct_automation_framework = os.path.join(app_under_test_frameworks_dir,
+                                              'XCTAutomationSupport.framework')
+      if os.path.exists(xct_automation_framework):
+        os.remove(xct_automation_framework)
+      shutil.copytree(
+          os.path.join(
+              platform_path, 'Developer/Library/PrivateFrameworks/'
+              'XCTAutomationSupport.framework'), xct_automation_framework)
 
     if self._on_device:
       app_under_test_signing_identity = bundle_util.GetCodesignIdentity(
@@ -591,7 +610,10 @@ class XctestRunFactory(object):
       bundle_util.CodesignBundle(
           xctest_framework, identity=app_under_test_signing_identity)
       bundle_util.CodesignBundle(
-          insert_libs_framework, identity=app_under_test_signing_identity)
+          bundle_injection_lib, identity=app_under_test_signing_identity)
+      if xct_automation_framework:
+        bundle_util.CodesignBundle(
+            xct_automation_framework, identity=app_under_test_signing_identity)
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
 

@@ -162,7 +162,7 @@ def _AddSimulatorTestSubParser(subparsers):
         if not reboot_sim:
           simulator_id, _, _, _ = simulator_util.CreateNewSimulator(
               device_type=args.device_type, os_version=args.os_version,
-              name=args.new_simulator_name)
+              name_prefix=args.new_simulator_name_prefix)
         reboot_sim = False
 
         try:
@@ -227,10 +227,11 @@ def _AddSimulatorTestSubParser(subparsers):
            'E.g., 10.2, 9.3. By default, it is the latest supported version of '
            'the simulator type.')
   test_parser.add_argument(
-      '--new_simulator_name',
-      help='The name of the new simulator. By default, it will be the value of '
-           'concatenating simulator type with os version. '
-           'E.g., NEW_IPHONE_6_PLUS_10_2.')
+      '--new_simulator_name_prefix',
+      help='The name prefix of the new simulator. By default, it is "New".'
+           'The new simulator name will be the value of concatenating name '
+           'prefix with simulator type and os version. '
+           'E.g., New-iPhone 6 Plus-10.2.')
   test_parser.set_defaults(func=_SimulatorTest)
 
 
