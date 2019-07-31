@@ -472,7 +472,9 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
         # One Xcode version always maps to one max simulator's iOS version.
         # The rules is almost max_sim_ios_version <= xcode_version + 200.
         # E.g., Xcode 8.3.1/8.3.3 maps to iOS 10.3, Xcode 7.3.1 maps to iOS 9.3.
-        if ios_version_num > xcode_version_num + 200:
+        # An exception here is Xcode 10.3, which maps to iOS 12.4.
+        if not (ios_version_num == 1240 and xcode_version_num == 1030) and
+          (ios_version_num > xcode_version_num + 200):
           continue
       sim_versions.append(listed_os_version)
   return sim_versions
