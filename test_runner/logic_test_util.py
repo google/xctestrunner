@@ -49,7 +49,7 @@ def RunLogicTestOnSim(
       simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + key] = env_vars[key]
   simctl_env_vars['NSUnbufferedIO'] = 'YES'
   command = [
-      'xcrun', 'simctl', 'spawn', sim_id,
+      'xcrun', 'simctl', 'spawn', '--standalone', sim_id,
       xcode_info_util.GetXctestToolPath(ios_constants.SDK.IPHONESIMULATOR)]
   if args:
     command += args
