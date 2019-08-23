@@ -158,7 +158,7 @@ class Simulator(object):
                      preexec_fn=os.setpgrp)
     # The delete command won't delete the simulator log directory.
     if os.path.exists(self.simulator_log_root_dir):
-      shutil.rmtree(self.simulator_log_root_dir)
+      shutil.rmtree(self.simulator_log_root_dir, ignore_errors=True)
     self._simulator_id = None
 
   def FetchLogToFile(self, output_file_path, start_time=None, end_time=None):
@@ -430,6 +430,8 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   Returns:
     a list of string, each item is an OS version number. E.g., ["10.1", "11.0"]
   """
+  if os_type is None:
+    os_type = ios_constants.OS.IOS
   # Example output:
   # {
   # "runtimes" : [
@@ -463,18 +465,28 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
 
     listed_os_type, listed_os_version = sim_runtime_info['name'].split(' ', 1)
     if listed_os_type == os_type:
-      if os_type == ios_constants.OS.IOS:
-        ios_major_version, ios_minor_version = listed_os_version.split('.', 1)
-        # Ingores the potential build version
-        ios_minor_version = ios_minor_version[0]
-        ios_version_num = int(ios_major_version) * 100 + int(
-            ios_minor_version) * 10
-        # One Xcode version always maps to one max simulator's iOS version.
-        # The rules is almost max_sim_ios_version <= xcode_version + 200.
-        # E.g., Xcode 8.3.1/8.3.3 maps to iOS 10.3, Xcode 7.3.1 maps to iOS 9.3.
-        if ios_version_num > xcode_version_num + 200:
-          continue
-      sim_versions.append(listed_os_version)
+      # `bundlePath` key may not exist in the old Xcode/macOS version.
+      if 'bundlePath' in sim_runtime_info:
+        runtime_path = sim_runtime_info['bundlePath']
+        info_plist_object = plist_util.Plist(
+            os.path.join(runtime_path, 'Contents/Info.plist'))
+        min_xcode_version_num = int(info_plist_object.GetPlistField('DTXcode'))
+        if xcode_version_num >= min_xcode_version_num:
+          sim_versions.append(listed_os_version)
+      else:
+        if os_type == ios_constants.OS.IOS:
+          ios_major_version, ios_minor_version = listed_os_version.split('.', 1)
+          # Ingores the potential build version
+          ios_minor_version = ios_minor_version[0]
+          ios_version_num = int(ios_major_version) * 100 + int(
+              ios_minor_version) * 10
+          # One Xcode version always maps to one max simulator's iOS version.
+          # The rules is almost max_sim_ios_version <= xcode_version + 200.
+          # E.g., Xcode 8.3.1/8.3.3 maps to iOS 10.3, Xcode 7.3.1 maps to iOS
+          # 9.3.
+          if ios_version_num > xcode_version_num + 200:
+            continue
+        sim_versions.append(listed_os_version)
   return sim_versions
 
 
