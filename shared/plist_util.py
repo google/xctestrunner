@@ -20,7 +20,7 @@ import plistlib
 import subprocess
 import xml.parsers.expat
 
-from xctestrunner.shared import ios_errors
+from shared import ios_errors
 try:
   import biplist
 except ImportError:

@@ -16,10 +16,10 @@
 
 import os
 
-from xctestrunner.shared import ios_constants
-from xctestrunner.shared import ios_errors
-from xctestrunner.shared import plist_util
-from xctestrunner.shared import xcode_info_util
+from shared import ios_constants
+from shared import ios_errors
+from shared import plist_util
+from shared import xcode_info_util
 
 
 class SimTypeProfile(object):

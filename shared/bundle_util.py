@@ -19,8 +19,8 @@ import os
 import subprocess
 import tempfile
 
-from xctestrunner.shared import ios_errors
-from xctestrunner.shared import plist_util
+from shared import ios_errors
+from shared import plist_util
 
 
 def ExtractApp(compressed_app_path, working_dir):

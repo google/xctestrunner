@@ -25,12 +25,12 @@ import logging
 import subprocess
 import sys
 
-from xctestrunner.shared import ios_constants
-from xctestrunner.shared import ios_errors
-from xctestrunner.shared import xcode_info_util
-from xctestrunner.simulator_control import simulator_util
-from xctestrunner.test_runner import runner_exit_codes
-from xctestrunner.test_runner import xctest_session
+from shared import ios_constants
+from shared import ios_errors
+from shared import xcode_info_util
+from simulator_control import simulator_util
+from test_runner import runner_exit_codes
+from test_runner import xctest_session
 
 _XCTESTRUN_HELP = (
     """The path of the xctestrun file.
