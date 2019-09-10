@@ -476,8 +476,10 @@ class XctestRunFactory(object):
         'DYLD_FRAMEWORK_PATH':
             '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/'
             'Library/Frameworks' % platform_name,
-        'DYLD_LIBRARY_PATH': '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/'
-                             'Library/Frameworks' % platform_name
+        'DYLD_LIBRARY_PATH':
+            '__TESTROOT__:__PLATFORMS__/{platform}.platform/Developer/usr/lib:'
+            '__PLATFORMS__/{platform}.platform/Developer/Library/Frameworks'
+            .format(platform=platform_name)
     }
     self._xctestrun_dict = {
         'IsUITestBundle': True,
