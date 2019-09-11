@@ -30,6 +30,7 @@ from xctestrunner.test_runner import xcodebuild_test_executor
 TESTROOT_RELATIVE_PATH = '__TESTROOT__'
 _SIGNAL_TEST_WITHOUT_BUILDING_SUCCEEDED = '** TEST EXECUTE SUCCEEDED **'
 _SIGNAL_TEST_WITHOUT_BUILDING_FAILED = '** TEST EXECUTE FAILED **'
+_LIB_XCTEST_SWIFT_RELATIVE_PATH = 'Developer/usr/lib/libXCTestSwiftSupport.dylib'
 
 
 class XctestRun(object):
@@ -393,25 +394,9 @@ class XctestRunFactory(object):
     Then copies app under test, test bundle, xctestrun.plist and uitest
     runner app to test root directory.
     """
-    platform_library_path = os.path.join(
-        xcode_info_util.GetSdkPlatformPath(self._sdk), 'Developer/Library')
+    platform_path = xcode_info_util.GetSdkPlatformPath(self._sdk)
+    platform_library_path = os.path.join(platform_path, 'Developer/Library')
     uitest_runner_app = self._GetUitestRunnerAppFromXcode(platform_library_path)
-
-    runner_app_frameworks_dir = os.path.join(uitest_runner_app, 'Frameworks')
-    os.mkdir(runner_app_frameworks_dir)
-    xctest_framework = os.path.join(runner_app_frameworks_dir,
-                                    'XCTest.framework')
-    shutil.copytree(
-        os.path.join(platform_library_path, 'Frameworks/XCTest.framework'),
-        xctest_framework)
-    if xcode_info_util.GetXcodeVersionNumber() >= 900:
-      xct_automation_framework = os.path.join(runner_app_frameworks_dir,
-                                              'XCTAutomationSupport.framework')
-      shutil.copytree(
-          os.path.join(platform_library_path,
-                       'PrivateFrameworks/XCTAutomationSupport.framework'),
-          xct_automation_framework)
-
     self._PrepareUitestInRunerApp(uitest_runner_app)
 
     if self._on_device:
@@ -458,11 +443,22 @@ class XctestRunFactory(object):
 
       test_bundle_signing_identity = bundle_util.GetCodesignIdentity(
           self._test_bundle_dir)
-      bundle_util.CodesignBundle(
-          xctest_framework, identity=test_bundle_signing_identity)
-      if xcode_info_util.GetXcodeVersionNumber() >= 900:
-        bundle_util.CodesignBundle(
-            xct_automation_framework, identity=test_bundle_signing_identity)
+
+      runner_app_frameworks_dir = os.path.join(uitest_runner_app, 'Frameworks')
+      os.mkdir(runner_app_frameworks_dir)
+      _CopyAndSignFramework(
+          os.path.join(platform_library_path, 'Frameworks/XCTest.framework'),
+          runner_app_frameworks_dir, test_bundle_signing_identity)
+      xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
+      if xcode_version_num >= 900:
+        _CopyAndSignFramework(
+            os.path.join(platform_library_path,
+                         'PrivateFrameworks/XCTAutomationSupport.framework'),
+            runner_app_frameworks_dir, test_bundle_signing_identity)
+      if xcode_version_num >= 1100:
+        _CopyAndSignLibFile(
+            os.path.join(platform_path, _LIB_XCTEST_SWIFT_RELATIVE_PATH),
+            runner_app_frameworks_dir, test_bundle_signing_identity)
       bundle_util.CodesignBundle(
           uitest_runner_app,
           entitlements_plist_path=entitlements_plist_path,
@@ -472,12 +468,12 @@ class XctestRunFactory(object):
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
     platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
+    developer_path = '__PLATFORMS__/%s.platform/Developer/' % platform_name
     test_envs = {
-        'DYLD_FRAMEWORK_PATH':
-            '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/'
-            'Library/Frameworks' % platform_name,
-        'DYLD_LIBRARY_PATH': '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/'
-                             'Library/Frameworks' % platform_name
+        'DYLD_FRAMEWORK_PATH': '__TESTROOT__:{developer}/Library/Frameworks:'
+                               '{developer}/Library/PrivateFrameworks'.format(
+                                   developer=developer_path),
+        'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib' % developer_path
     }
     self._xctestrun_dict = {
         'IsUITestBundle': True,
@@ -561,82 +557,61 @@ class XctestRunFactory(object):
       self._test_bundle_dir = _MoveAndReplaceFile(
           self._test_bundle_dir, app_under_test_plugins_dir)
 
-    platform_path = xcode_info_util.GetSdkPlatformPath(self._sdk)
-    app_under_test_frameworks_dir = os.path.join(self._app_under_test_dir,
-                                                 'Frameworks')
-    if not os.path.exists(app_under_test_frameworks_dir):
-      os.mkdir(app_under_test_frameworks_dir)
-    xctest_framework = os.path.join(app_under_test_frameworks_dir,
-                                    'XCTest.framework')
-    if os.path.exists(xctest_framework):
-      shutil.rmtree(xctest_framework)
-    shutil.copytree(
-        os.path.join(platform_path,
-                     'Developer/Library/Frameworks/XCTest.framework'),
-        xctest_framework)
-    if xcode_info_util.GetXcodeVersionNumber() < 1000:
-      bundle_injection_lib = os.path.join(app_under_test_frameworks_dir,
-                                          'IDEBundleInjection.framework')
-      if os.path.exists(bundle_injection_lib):
-        shutil.rmtree(bundle_injection_lib)
-      shutil.copytree(
-          os.path.join(
-              platform_path, 'Developer/Library/PrivateFrameworks/'
-              'IDEBundleInjection.framework'),
-          bundle_injection_lib)
-    else:
-      bundle_injection_lib = os.path.join(app_under_test_frameworks_dir,
-                                          'libXCTestBundleInject.dylib')
-      if os.path.exists(bundle_injection_lib):
-        os.remove(bundle_injection_lib)
-      shutil.copyfile(
-          os.path.join(platform_path,
-                       'Developer/usr/lib/libXCTestBundleInject.dylib'),
-          bundle_injection_lib)
-    xct_automation_framework = None
-    if xcode_info_util.GetXcodeVersionNumber() >= 1100:
-      xct_automation_framework = os.path.join(app_under_test_frameworks_dir,
-                                              'XCTAutomationSupport.framework')
-      if os.path.exists(xct_automation_framework):
-        os.remove(xct_automation_framework)
-      shutil.copytree(
-          os.path.join(
-              platform_path, 'Developer/Library/PrivateFrameworks/'
-              'XCTAutomationSupport.framework'), xct_automation_framework)
-
     if self._on_device:
+      platform_path = xcode_info_util.GetSdkPlatformPath(self._sdk)
+      app_under_test_frameworks_dir = os.path.join(self._app_under_test_dir,
+                                                   'Frameworks')
+      if not os.path.exists(app_under_test_frameworks_dir):
+        os.mkdir(app_under_test_frameworks_dir)
       app_under_test_signing_identity = bundle_util.GetCodesignIdentity(
           self._app_under_test_dir)
-      bundle_util.CodesignBundle(
-          xctest_framework, identity=app_under_test_signing_identity)
-      bundle_util.CodesignBundle(
-          bundle_injection_lib, identity=app_under_test_signing_identity)
-      if xct_automation_framework:
-        bundle_util.CodesignBundle(
-            xct_automation_framework, identity=app_under_test_signing_identity)
+      _CopyAndSignFramework(
+          os.path.join(platform_path,
+                       'Developer/Library/Frameworks/XCTest.framework'),
+          app_under_test_frameworks_dir, app_under_test_signing_identity)
+      xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
+      if xcode_version_num < 1000:
+        bundle_injection_lib = os.path.join(
+            platform_path, 'Developer/Library/PrivateFrameworks/'
+            'IDEBundleInjection.framework')
+        _CopyAndSignFramework(bundle_injection_lib,
+                              app_under_test_frameworks_dir,
+                              app_under_test_signing_identity)
+      else:
+        bundle_injection_lib = os.path.join(
+            platform_path, 'Developer/usr/lib/libXCTestBundleInject.dylib')
+        _CopyAndSignLibFile(bundle_injection_lib, app_under_test_frameworks_dir,
+                            app_under_test_signing_identity)
+      if xcode_version_num >= 1100:
+        _CopyAndSignFramework(
+            os.path.join(
+                platform_path, 'Developer/Library/PrivateFrameworks/'
+                'XCTAutomationSupport.framework'),
+            app_under_test_frameworks_dir, app_under_test_signing_identity)
+        _CopyAndSignLibFile(
+            os.path.join(platform_path, _LIB_XCTEST_SWIFT_RELATIVE_PATH),
+            app_under_test_frameworks_dir, app_under_test_signing_identity)
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
     app_under_test_name = os.path.splitext(
         os.path.basename(self._app_under_test_dir))[0]
     platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
+    developer_path = '__PLATFORMS__/%s.platform/Developer/' % platform_name
     if xcode_info_util.GetXcodeVersionNumber() < 1000:
-      dyld_insert_libs = ('__PLATFORMS__/%s.platform/Developer/Library/'
-                          'PrivateFrameworks/IDEBundleInjection.framework/'
-                          'IDEBundleInjection' % platform_name)
+      dyld_insert_libs = ('%s/Library/PrivateFrameworks/'
+                          'IDEBundleInjection.framework/IDEBundleInjection' %
+                          developer_path)
     else:
-      dyld_insert_libs = ('__PLATFORMS__/%s.platform/Developer/usr/lib/'
-                          'libXCTestBundleInject.dylib' % platform_name)
+      dyld_insert_libs = ('%s/usr/lib/libXCTestBundleInject.dylib' %
+                          developer_path)
     test_envs = {
-        'XCInjectBundleInto':
-            os.path.join('__TESTHOST__', app_under_test_name),
-        'DYLD_FRAMEWORK_PATH':
-            '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/'
-            'Library/Frameworks' % platform_name,
+        'XCInjectBundleInto': os.path.join('__TESTHOST__', app_under_test_name),
+        'DYLD_FRAMEWORK_PATH': '__TESTROOT__:{developer}/Library/Frameworks:'
+                               '{developer}/Library/PrivateFrameworks'.format(
+                                   developer=developer_path),
         'DYLD_INSERT_LIBRARIES': dyld_insert_libs,
-        'DYLD_LIBRARY_PATH':
-            '__TESTROOT__:__PLATFORMS__/%s.platform/Developer/Library/'
-            'Frameworks' % platform_name,
+        'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib:' % developer_path
     }
     self._xctestrun_dict = {
         'TestHostPath': self._app_under_test_dir,
@@ -673,3 +648,23 @@ def _MoveAndReplaceFile(src_file, target_parent_dir):
     shutil.rmtree(new_file_path)
   shutil.move(src_file, new_file_path)
   return new_file_path
+
+
+def _CopyAndSignFramework(src_framework, target_parent_dir, signing_identity):
+  """Copies the framework to the directory and signs the file with identity."""
+  file_name = os.path.basename(src_framework)
+  target_path = os.path.join(target_parent_dir, file_name)
+  if os.path.exists(target_path):
+    shutil.rmtree(target_path)
+  shutil.copytree(src_framework, target_path)
+  bundle_util.CodesignBundle(target_path, identity=signing_identity)
+
+
+def _CopyAndSignLibFile(src_lib, target_parent_dir, signing_identity):
+  """Copies the library to the directory and signs the file with identity."""
+  file_name = os.path.basename(src_lib)
+  target_path = os.path.join(target_parent_dir, file_name)
+  if os.path.exists(target_path):
+    os.remove(target_path)
+  shutil.copy(src_lib, target_path)
+  bundle_util.CodesignBundle(target_path, identity=signing_identity)
