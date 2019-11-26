@@ -27,4 +27,5 @@ par_binary(
         ':simulator',
     ],
     data = glob(['test_runner/TestProject/**']),
+    python_version = 'PY2',
 )
