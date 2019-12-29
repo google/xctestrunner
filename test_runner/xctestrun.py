@@ -475,6 +475,15 @@ class XctestRunFactory(object):
                                    developer=developer_path),
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib' % developer_path
     }
+    # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
+    # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
+    # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
+    # the correct Swift dylibs that have been packaged with Xcode.
+    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+    swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
+    if swift5FallbackLibsDir:
+      test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
+
     self._xctestrun_dict = {
         'IsUITestBundle': True,
         'SystemAttachmentLifetime': 'keepNever',
@@ -613,6 +622,15 @@ class XctestRunFactory(object):
         'DYLD_INSERT_LIBRARIES': dyld_insert_libs,
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib:' % developer_path
     }
+    # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
+    # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
+    # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
+    # the correct Swift dylibs that have been packaged with Xcode.
+    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+    swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
+    if swift5FallbackLibsDir:
+      test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
+
     self._xctestrun_dict = {
         'TestHostPath': self._app_under_test_dir,
         'TestBundlePath': self._test_bundle_dir,
@@ -633,6 +651,15 @@ class XctestRunFactory(object):
         'DYLD_FRAMEWORK_PATH': dyld_framework_path,
         'DYLD_LIBRARY_PATH': dyld_framework_path
     }
+    # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
+    # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
+    # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
+    # the correct Swift dylibs that have been packaged with Xcode.
+    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+    swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
+    if swift5FallbackLibsDir:
+      test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
+
     self._xctestrun_dict = {
         'TestBundlePath': self._test_bundle_dir,
         'TestHostPath': xcode_info_util.GetXctestToolPath(self._sdk),
