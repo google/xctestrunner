@@ -27,6 +27,12 @@ def GetXcodeDeveloperPath():
   return subprocess.check_output(('xcode-select', '-p')).strip()
 
 
+# Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
+# libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
+# run on simulators running iOS 12.1 or lower. To fix this bug, we need to provide explicit
+# fallbacks to the correct Swift dylibs that have been packaged with Xcode. This method returns the
+# path to that fallback directory.
+# See https://github.com/bazelbuild/rules_apple/issues/684 for context.
 def GetSwift5FallbackLibsDir():
   relativePath = "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0"
   swiftLibsDir = os.path.join(GetXcodeDeveloperPath(), relativePath)

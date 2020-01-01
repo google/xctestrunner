@@ -475,11 +475,11 @@ class XctestRunFactory(object):
                                    developer=developer_path),
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib' % developer_path
     }
-    # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
-    # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
-    # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
-    # the correct Swift dylibs that have been packaged with Xcode.
-    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+
+    # Fixes failures for UI test targets that depend on Swift libraries when running with Xcode 11
+    # on pre-iOS 12.2 simulators.
+    # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
+    # or missing necessary resources."
     swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
     if swift5FallbackLibsDir:
       test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
@@ -622,11 +622,11 @@ class XctestRunFactory(object):
         'DYLD_INSERT_LIBRARIES': dyld_insert_libs,
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib:' % developer_path
     }
-    # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
-    # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
-    # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
-    # the correct Swift dylibs that have been packaged with Xcode.
-    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+
+    # Fixes failures for test targets that depend on Swift libraries when running with Xcode 11
+    # on pre-iOS 12.2 simulators.
+    # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
+    # or missing necessary resources."
     swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
     if swift5FallbackLibsDir:
       test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
@@ -651,11 +651,11 @@ class XctestRunFactory(object):
         'DYLD_FRAMEWORK_PATH': dyld_framework_path,
         'DYLD_LIBRARY_PATH': dyld_framework_path
     }
-    # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
-    # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
-    # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
-    # the correct Swift dylibs that have been packaged with Xcode.
-    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+
+    # Fixes failures for unit test targets that depend on Swift libraries when running with Xcode 11
+    # on pre-iOS 12.2 simulators.
+    # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
+    # or missing necessary resources."
     swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
     if swift5FallbackLibsDir:
       test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir

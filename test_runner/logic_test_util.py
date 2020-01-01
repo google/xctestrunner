@@ -49,11 +49,10 @@ def RunLogicTestOnSim(
       simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + key] = env_vars[key]
   simctl_env_vars['NSUnbufferedIO'] = 'YES'
 
-  # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
-  # libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
-  # run on simulators running iOS 12.1 or lower. To fix this bug, we provide an explicit fallback to
-  # the correct Swift dylibs that have been packaged with Xcode.
-  # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+  # Fixes failures for unit test targets that depend on Swift libraries when running with Xcode 11
+  # on pre-iOS 12.2 simulators.
+  # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
+  # or missing necessary resources."
   swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
   if swift5FallbackLibsDir:
     simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + "DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
