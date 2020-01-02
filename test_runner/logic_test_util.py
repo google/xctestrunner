@@ -48,6 +48,15 @@ def RunLogicTestOnSim(
     for key in env_vars:
       simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + key] = env_vars[key]
   simctl_env_vars['NSUnbufferedIO'] = 'YES'
+
+  # Fixes failures for unit test targets that depend on Swift libraries when running with Xcode 11
+  # on pre-iOS 12.2 simulators.
+  # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
+  # or missing necessary resources."
+  swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
+  if swift5FallbackLibsDir:
+    simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + "DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
+
   command = [
       'xcrun', 'simctl', 'spawn', '-s', sim_id,
       xcode_info_util.GetXctestToolPath(ios_constants.SDK.IPHONESIMULATOR)]
