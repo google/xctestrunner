@@ -16,6 +16,14 @@ environment variables, additional arguments.
 ## Installation
 You can download the ios_test_runner.par binary in [release](https://github.com/google/xctestrunner/releases)
 
+or build the ios_test_runner.par binary by bazel:
+```
+$ git clone https://github.com/google/xctestrunner.git
+$ cd xctestrunner
+$ bazel build xctestrunner:ios_test_runner.par
+$ ls bazel-bin/xctestrunner/ios_test_runner.par
+```
+
 ## Usage
 - Build your app under test and test bundle. You can use Xcode.app,
 `xcodebuild` command line tool or [bazel](https://github.com/bazelbuild/bazel).

@@ -17,7 +17,7 @@
 import os
 import subprocess
 
-from shared import ios_constants
+from xctestrunner.shared import ios_constants
 
 _xcode_version_number = None
 
