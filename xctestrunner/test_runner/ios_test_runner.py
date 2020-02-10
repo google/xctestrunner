@@ -107,8 +107,12 @@ def _AddTestSubParser(subparsers):
   def _Test(args):
     """The function of sub command `test`."""
     sdk = _PlatformToSdk(args.platform) if args.platform else _GetSdk(args.id)
+    device_arch = _GetDeviceArch(args.id, sdk)
     with xctest_session.XctestSession(
-        sdk=sdk, work_dir=args.work_dir, output_dir=args.output_dir) as session:
+        sdk=sdk,
+        device_arch=device_arch,
+        work_dir=args.work_dir,
+        output_dir=args.output_dir) as session:
       session.Prepare(
           app_under_test=args.app_under_test_path,
           test_bundle=args.test_bundle_path,
@@ -142,6 +146,7 @@ def _AddSimulatorTestSubParser(subparsers):
     """The function of running test with new simulator."""
     with xctest_session.XctestSession(
         sdk=ios_constants.SDK.IPHONESIMULATOR,
+        device_arch=ios_constants.ARCH.X86_64,
         work_dir=args.work_dir, output_dir=args.output_dir) as session:
       session.Prepare(
           app_under_test=args.app_under_test_path,
@@ -291,6 +296,17 @@ def _GetSdk(device_id):
   raise ios_errors.IllegalArgumentError(
       'The device with id %s can not be found. The known devices are %s.' %
       (device_id, known_devices_output))
+
+
+def _GetDeviceArch(device_id, sdk):
+  """Gets the device architecture."""
+  # It is a temporary soluton to get device architecture. Checking i386 and
+  # armv7/armv7s is not supported.
+  if sdk == ios_constants.SDK.IPHONESIMULATOR:
+    return ios_constants.ARCH.X86_64
+  if '-' in device_id:
+    return ios_constants.ARCH.ARM64E
+  return ios_constants.ARCH.ARM64
 
 
 def main(argv):

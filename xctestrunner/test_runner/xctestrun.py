@@ -251,6 +251,7 @@ class XctestRunFactory(object):
 
   def __init__(self, app_under_test_dir, test_bundle_dir,
                sdk=ios_constants.SDK.IPHONESIMULATOR,
+               device_arch=ios_constants.ARCH.X86_64,
                test_type=ios_constants.TestType.XCUITEST,
                signing_options=None, work_dir=None):
     """Initializes the XctestRun object.
@@ -263,6 +264,7 @@ class XctestRunFactory(object):
       test_bundle_dir: string, path of the test bundle.
       sdk: string, SDKRoot of the test. See supported SDKs in module
           xctestrunner.shared.ios_constants.
+      device_arch: ios_constants.ARCH. The architecture of the target device.
       test_type: string, test type of the test bundle. See supported test types
           in module xctestrunner.shared.ios_constants.
       signing_options: dict, the signing app options. See
@@ -276,6 +278,7 @@ class XctestRunFactory(object):
     self._test_bundle_dir = test_bundle_dir
     self._test_name = os.path.splitext(os.path.basename(test_bundle_dir))[0]
     self._sdk = sdk
+    self._device_arch = device_arch
     self._test_type = test_type
     if self._sdk == ios_constants.SDK.IPHONEOS:
       self._on_device = True
@@ -468,7 +471,7 @@ class XctestRunFactory(object):
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
     platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
-    developer_path = '__PLATFORMS__/%s.platform/Developer/' % platform_name
+    developer_path = '__PLATFORMS__/%s.platform/Developer' % platform_name
     test_envs = {
         'DYLD_FRAMEWORK_PATH': '__TESTROOT__:{developer}/Library/Frameworks:'
                                '{developer}/Library/PrivateFrameworks'.format(
@@ -516,9 +519,20 @@ class XctestRunFactory(object):
     uitest_runner_app = os.path.join(self._test_root_dir,
                                      uitest_runner_app_name + '.app')
     shutil.copytree(xctrunner_app, uitest_runner_app)
+    uitest_runner_exec = os.path.join(uitest_runner_app, uitest_runner_app_name)
     shutil.move(
-        os.path.join(uitest_runner_app, 'XCTRunner'),
-        os.path.join(uitest_runner_app, uitest_runner_app_name))
+        os.path.join(uitest_runner_app, 'XCTRunner'), uitest_runner_exec)
+    # XCTRunner is multi-archs. When launching XCTRunner on arm64e device, it
+    # will be launched as arm64e process by default. If the test bundle is arm64
+    # bundle, the XCTRunner which hosts the test bundle will failed to be
+    # launched. So removing the arm64e arch from XCTRunner can resolve this
+    # case.
+    if self._device_arch == ios_constants.ARCH.ARM64E:
+      test_executable = os.path.join(self._test_bundle_dir, test_bundle_name)
+      test_archs = bundle_util.GetFileArchTypes(test_executable)
+      if ios_constants.ARCH.ARM64E not in test_archs:
+        bundle_util.RemoveArchType(uitest_runner_exec,
+                                   ios_constants.ARCH.ARM64E)
 
     runner_app_info_plist_path = os.path.join(uitest_runner_app, 'Info.plist')
     info_plist = plist_util.Plist(runner_app_info_plist_path)
@@ -606,7 +620,7 @@ class XctestRunFactory(object):
     app_under_test_name = os.path.splitext(
         os.path.basename(self._app_under_test_dir))[0]
     platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
-    developer_path = '__PLATFORMS__/%s.platform/Developer/' % platform_name
+    developer_path = '__PLATFORMS__/%s.platform/Developer' % platform_name
     if xcode_info_util.GetXcodeVersionNumber() < 1000:
       dyld_insert_libs = ('%s/Library/PrivateFrameworks/'
                           'IDEBundleInjection.framework/IDEBundleInjection' %

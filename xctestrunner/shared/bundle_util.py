@@ -215,6 +215,18 @@ def EnableUIFileSharing(bundle_path, resigning=True):
     CodesignBundle(bundle_path)
 
 
+def GetFileArchTypes(file_path):
+  """Gets the architecture types of the file."""
+  output = subprocess.check_output(['/usr/bin/lipo', file_path, '-archs'])
+  return output.split(' ')
+
+
+def RemoveArchType(file_path, arch_type):
+  """Remove the given architecture types for the file."""
+  subprocess.check_call(
+      ['/usr/bin/lipo', file_path, '-remove', arch_type, '-output', file_path])
+
+
 def _ExtractBundleFile(target_dir, bundle_extension):
   """Extract single bundle file with given extension.
 

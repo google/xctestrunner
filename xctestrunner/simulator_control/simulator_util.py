@@ -134,12 +134,14 @@ class Simulator(object):
     self.WaitUntilStateShutdown()
     logging.info('Shut down simulator %s.', self.simulator_id)
 
-  def Delete(self):
-    """Deletes the simulator asynchronously.
+  def Delete(self, asynchronously=True):
+    """Deletes the simulator.
 
     The simulator state should be SHUTDOWN when deleting it. Otherwise, it will
     raise exception.
 
+    Args:
+      asynchronously: whether deleting the simulator asynchronously.
     Raises:
       ios_errors.SimError: The simulator's state is not SHUTDOWN.
     """
@@ -151,11 +153,21 @@ class Simulator(object):
         raise ios_errors.SimError(
             'Can only delete the simulator with state SHUTDOWN. The current '
             'state of simulator %s is %s.' % (self._simulator_id, sim_state))
-    logging.info('Deleting simulator %s asynchronously.', self.simulator_id)
-    subprocess.Popen(['xcrun', 'simctl', 'delete', self.simulator_id],
-                     stdout=subprocess.PIPE,
-                     stderr=subprocess.PIPE,
-                     preexec_fn=os.setpgrp)
+    command = ['xcrun', 'simctl', 'delete', self.simulator_id]
+    if asynchronously:
+      logging.info('Deleting simulator %s asynchronously.', self.simulator_id)
+      subprocess.Popen(
+          command,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.PIPE,
+          preexec_fn=os.setpgrp)
+    else:
+      try:
+        RunSimctlCommand(command)
+        logging.info('Deleted simulator %s.', self.simulator_id)
+      except ios_errors.SimError as e:
+        raise ios_errors.SimError('Failed to delete simulator %s: %s' %
+                                  (self.simulator_id, str(e)))
     # The delete command won't delete the simulator log directory.
     if os.path.exists(self.simulator_log_root_dir):
       shutil.rmtree(self.simulator_log_root_dir, ignore_errors=True)
@@ -413,9 +425,8 @@ def GetLastSupportedIphoneSimType(os_version):
   os_version_float = float(os_version)
   for sim_type in supported_sim_types:
     if sim_type.startswith('iPhone'):
-      min_os_version_float = float(
-          simtype_profile.SimTypeProfile(sim_type).min_os_version)
-      if os_version_float >= min_os_version_float:
+      min_os_version = simtype_profile.SimTypeProfile(sim_type).min_os_version
+      if os_version_float >= min_os_version:
         return sim_type
   raise ios_errors.SimError('Can not find supported iPhone simulator type.')
 
@@ -520,17 +531,19 @@ def GetLastSupportedSimOsVersion(os_type=ios_constants.OS.IOS,
   if not device_type:
     return supported_os_versions[-1]
 
-  simtype_max_os_version_float = float(
-      simtype_profile.SimTypeProfile(device_type).max_os_version)
+  max_os_version = simtype_profile.SimTypeProfile(device_type).max_os_version
+  # The supported os versions will be from latest to older after reverse().
   supported_os_versions.reverse()
+  if not max_os_version:
+    return supported_os_versions[0]
+
   for os_version in supported_os_versions:
-    if float(os_version) <= simtype_max_os_version_float:
+    if float(os_version) <= max_os_version:
       return os_version
-  if not supported_os_versions:
-    raise ios_errors.IllegalArgumentError(
-        'The supported OS version %s can not match simulator type %s. Because '
-        'its max OS version is %s' %
-        (supported_os_versions, device_type, simtype_max_os_version_float))
+  raise ios_errors.IllegalArgumentError(
+      'The supported OS version %s can not match simulator type %s. Because '
+      'its max OS version is %s' %
+      (supported_os_versions, device_type, max_os_version))
 
 
 def GetOsType(device_type):
@@ -598,16 +611,17 @@ def _ValidateSimulatorTypeWithOsVersion(device_type, os_version):
   """
   os_version_float = float(os_version)
   sim_profile = simtype_profile.SimTypeProfile(device_type)
-  min_os_version_float = float(sim_profile.min_os_version)
-  if min_os_version_float > os_version_float:
+  min_os_version = sim_profile.min_os_version
+  if min_os_version > os_version_float:
     raise ios_errors.IllegalArgumentError(
-        'The min OS version of %s is %s. But current OS version is %s' %
-        (device_type, min_os_version_float, os_version))
-  max_os_version_float = float(sim_profile.max_os_version)
-  if max_os_version_float < os_version_float:
-    raise ios_errors.IllegalArgumentError(
-        'The max OS version of %s is %s. But current OS version is %s' %
-        (device_type, max_os_version_float, os_version))
+        'The min OS version of %s is %f. But current OS version is %s' %
+        (device_type, min_os_version, os_version))
+  max_os_version = sim_profile.max_os_version
+  if max_os_version:
+    if max_os_version < os_version_float:
+      raise ios_errors.IllegalArgumentError(
+          'The max OS version of %s is %f. But current OS version is %s' %
+          (device_type, max_os_version, os_version))
 
 
 def QuitSimulatorApp():

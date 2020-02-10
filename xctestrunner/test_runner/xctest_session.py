@@ -34,7 +34,7 @@ from xctestrunner.test_runner import xctestrun
 class XctestSession(object):
   """The class that runs XCTEST based tests."""
 
-  def __init__(self, sdk, work_dir=None, output_dir=None):
+  def __init__(self, sdk, device_arch, work_dir=None, output_dir=None):
     """Initializes the XctestSession object.
 
     If work_dir is not provdied, will create a temp direcotry to be work_dir and
@@ -43,6 +43,7 @@ class XctestSession(object):
 
     Args:
       sdk: ios_constants.SDK. The sdk of the target device.
+      device_arch: ios_constants.ARCH. The architecture of the target device.
       work_dir: string, the working directory contains runfiles.
       output_dir: string, The directory where derived data will go, including:
           1) the detailed test session log which includes test output and the
@@ -51,6 +52,7 @@ class XctestSession(object):
           specified, the directory will not be deleted after test ends.'
     """
     self._sdk = sdk
+    self._device_arch = device_arch
     self._work_dir = work_dir
     self._delete_work_dir = True
     self._output_dir = output_dir
@@ -146,8 +148,8 @@ class XctestSession(object):
           test_type != ios_constants.TestType.LOGIC_TEST and
           xcode_info_util.GetXcodeVersionNumber() >= 800):
         xctestrun_factory = xctestrun.XctestRunFactory(
-            app_under_test_dir, test_bundle_dir, self._sdk, test_type,
-            signing_options, self._work_dir)
+            app_under_test_dir, test_bundle_dir, self._sdk, self._device_arch,
+            test_type, signing_options, self._work_dir)
         self._xctestrun_obj = xctestrun_factory.GenerateXctestrun()
       elif test_type == ios_constants.TestType.XCUITEST:
         raise ios_errors.IllegalArgumentError(

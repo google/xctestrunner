@@ -47,13 +47,14 @@ class SimTypeProfile(object):
       profile.plist.
     """
     if not self._profile_plist_obj:
-      if xcode_info_util.GetXcodeVersionNumber() >= 900:
+      xcode_version = xcode_info_util.GetXcodeVersionNumber()
+      if xcode_version >= 900:
         platform_path = xcode_info_util.GetSdkPlatformPath(
             ios_constants.SDK.IPHONEOS)
       else:
         platform_path = xcode_info_util.GetSdkPlatformPath(
             ios_constants.SDK.IPHONESIMULATOR)
-      if xcode_info_util.GetXcodeVersionNumber() >= 1100:
+      if xcode_version >= 1100:
         sim_profiles_dir = os.path.join(
             platform_path, 'Library/Developer/CoreSimulator/Profiles')
       else:
@@ -71,14 +72,12 @@ class SimTypeProfile(object):
     """Gets the min supported OS version.
 
     Returns:
-      string, the min supported OS version.
+      float, the min supported OS version.
     """
     if not self._min_os_version:
-      min_os_version = self.profile_plist_obj.GetPlistField('minRuntimeVersion')
-      # Cut build version. E.g., cut 9.3.3 to 9.3.
-      if min_os_version.count('.') > 1:
-        min_os_version = min_os_version[:min_os_version.rfind('.')]
-      self._min_os_version = min_os_version
+      min_os_version_str = self.profile_plist_obj.GetPlistField(
+          'minRuntimeVersion')
+      self._min_os_version = _extra_os_version(min_os_version_str)
     return self._min_os_version
 
   @property
@@ -86,19 +85,26 @@ class SimTypeProfile(object):
     """Gets the max supported OS version.
 
     Returns:
-      string, the max supported OS version.
+      float, the max supported OS version or None if it is not found.
     """
     if not self._max_os_version:
       # If the profile.plist does not have maxRuntimeVersion field, it means
       # it supports the max OS version of current iphonesimulator platform.
       try:
-        max_os_version = self.profile_plist_obj.GetPlistField(
+        max_os_version_str = self.profile_plist_obj.GetPlistField(
             'maxRuntimeVersion')
       except ios_errors.PlistError:
-        max_os_version = xcode_info_util.GetSdkVersion(
-            ios_constants.SDK.IPHONESIMULATOR)
-      # Cut build version. E.g., cut 9.3.3 to 9.3.
-      if max_os_version.count('.') > 1:
-        max_os_version = max_os_version[:max_os_version.rfind('.')]
-      self._max_os_version = max_os_version
+        return None
+      self._max_os_version = _extra_os_version(max_os_version_str)
     return self._max_os_version
+
+
+def _extra_os_version(os_version_str):
+  """Extracts os version float value from a given string."""
+  # Cut build version. E.g., cut 9.3.3 to 9.3.
+  if os_version_str.count('.') > 1:
+    os_version_str = os_version_str[:os_version_str.rfind('.')]
+  # We need to round the os version string in the simulator profile. E.g.,
+  # the maxRuntimeVersion of iPhone 5 is 10.255.255 and we could create iOS 10.3
+  # for iPhone 5.
+  return round(float(os_version_str), 1)

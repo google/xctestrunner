@@ -19,6 +19,13 @@ def enum(**enums):
   return type('Enum', (), enums)
 
 
+ARCH = enum(
+    ARMV7='armv7',
+    ARMV7S='armv7s',
+    ARM64='arm64',
+    ARM64E='arm64e',
+    I386='i386',
+    X86_64='x86_64')
 SDK = enum(IPHONEOS='iphoneos', IPHONESIMULATOR='iphonesimulator')
 # It is consistent with bazel's apple platform:
 # https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/rules/apple/ApplePlatform.java

@@ -34,6 +34,7 @@ def GetXcodeDeveloperPath():
 # path to that fallback directory.
 # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
 def GetSwift5FallbackLibsDir():
+  """Gets the directory for Swift5 fallback libraries."""
   relativePath = "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0"
   swiftLibsDir = os.path.join(GetXcodeDeveloperPath(), relativePath)
   swiftLibPlatformDir = os.path.join(swiftLibsDir, ios_constants.SDK.IPHONESIMULATOR)

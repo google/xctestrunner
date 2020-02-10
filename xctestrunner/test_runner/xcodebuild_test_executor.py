@@ -49,6 +49,7 @@ _DEVICE_TYPE_WAS_NULL_PATTERN = re.compile(
 _TOO_MANY_INSTANCES_ALREADY_RUNNING = ('Too many instances of this service are '
                                        'already running.')
 _LOST_CONNECTION_ERROR = 'Lost connection to testmanagerd'
+_LOST_CONNECTION_TO_DTSERVICEHUB_ERROR = 'Lost connection to DTServiceHub'
 
 
 class CheckXcodebuildStuckThread(threading.Thread):
@@ -211,9 +212,14 @@ class XcodebuildTestExecutor(object):
         output_str = output.getvalue()
         if self._sdk == ios_constants.SDK.IPHONEOS:
           if ((re.search(_DEVICE_TYPE_WAS_NULL_PATTERN, output_str) or
-               _LOST_CONNECTION_ERROR in output_str) and i < max_attempts - 1):
+               _LOST_CONNECTION_ERROR in output_str or
+               _LOST_CONNECTION_TO_DTSERVICEHUB_ERROR in output_str) and
+              i < max_attempts - 1):
             logging.warning(
-                'Failed to launch test on the device. Will relaunch again.')
+                'Failed to launch test on the device. Will relaunch again '
+                'after 5s.'
+            )
+            time.sleep(5)
             continue
           if _TOO_MANY_INSTANCES_ALREADY_RUNNING in output_str:
             return (runner_exit_codes.EXITCODE.NEED_REBOOT_DEVICE,
