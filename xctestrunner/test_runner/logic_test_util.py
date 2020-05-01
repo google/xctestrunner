@@ -18,14 +18,19 @@ import subprocess
 import sys
 
 from xctestrunner.shared import ios_constants
+from xctestrunner.shared import version_util
 from xctestrunner.shared import xcode_info_util
 from xctestrunner.test_runner import runner_exit_codes
 
 _SIMCTL_ENV_VAR_PREFIX = 'SIMCTL_CHILD_'
 
 
-def RunLogicTestOnSim(
-    sim_id, test_bundle_path, env_vars=None, args=None, tests_to_run=None):
+def RunLogicTestOnSim(sim_id,
+                      test_bundle_path,
+                      env_vars=None,
+                      args=None,
+                      tests_to_run=None,
+                      os_version=None):
   """Runs logic tests on the simulator. The output prints on system stdout.
 
   Args:
@@ -36,6 +41,7 @@ def RunLogicTestOnSim(
     args: array, the additional arguments passing to test's process.
     tests_to_run: array, the format of each item is TestClass[/TestMethod].
         If it is empty, then runs with All methods.
+    os_version: string, the OS version of the simulator.
 
   Returns:
     exit_code: A value of type runner_exit_codes.EXITCODE.
@@ -48,15 +54,14 @@ def RunLogicTestOnSim(
     for key in env_vars:
       simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + key] = env_vars[key]
   simctl_env_vars['NSUnbufferedIO'] = 'YES'
-
-  # Fixes failures for unit test targets that depend on Swift libraries when running with Xcode 11
-  # on pre-iOS 12.2 simulators.
-  # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
-  # or missing necessary resources."
-  swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
-  if swift5FallbackLibsDir:
-    simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + "DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
-
+  # When running tests on iOS 12.1 or earlier simulator under Xcode 11 or later,
+  # it is required to add swift5 fallback libraries to environment variable.
+  # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+  if (xcode_info_util.GetXcodeVersionNumber() >= 1100 and
+      os_version and
+      version_util.GetVersionNumber(os_version) < 1220):
+    key = _SIMCTL_ENV_VAR_PREFIX + 'DYLD_FALLBACK_LIBRARY_PATH'
+    simctl_env_vars[key] = xcode_info_util.GetSwift5FallbackLibsDir()
   command = [
       'xcrun', 'simctl', 'spawn', '-s', sim_id,
       xcode_info_util.GetXctestToolPath(ios_constants.SDK.IPHONESIMULATOR)]

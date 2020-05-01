@@ -14,6 +14,7 @@
 
 """The module to run XCTEST based tests."""
 
+import glob
 import logging
 import os
 import shutil
@@ -24,10 +25,8 @@ from xctestrunner.shared import bundle_util
 from xctestrunner.shared import ios_constants
 from xctestrunner.shared import ios_errors
 from xctestrunner.shared import xcode_info_util
-from xctestrunner.test_runner import dummy_project
 from xctestrunner.test_runner import logic_test_util
-from xctestrunner.test_runner import runner_exit_codes
-from xctestrunner.test_runner import test_summaries_util
+from xctestrunner.test_runner import xcresult_util
 from xctestrunner.test_runner import xctestrun
 
 
@@ -60,7 +59,6 @@ class XctestSession(object):
     self._startup_timeout_sec = None
     self._destination_timeout_sec = None
     self._xctestrun_obj = None
-    self._dummy_project_obj = None
     self._prepared = False
     # The following fields are only for Logic Test.
     self._logic_test_bundle = None
@@ -84,7 +82,7 @@ class XctestSession(object):
     """Prepares the test session.
 
     If xctestrun_file is not provided, will use app under test and test bundle
-    path to generate a new xctest file or dummy project.
+    path to generate a new xctest file.
 
     Args:
       app_under_test: string, the path of the application to be tested. It can
@@ -123,11 +121,6 @@ class XctestSession(object):
       self._delete_output_dir = True
 
     if xctestrun_file_path:
-      xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
-      if xcode_version_num < 800:
-        raise ios_errors.IllegalArgumentError(
-            'The xctestrun file is only supported in Xcode 8+. But current '
-            'Xcode version number is %s' % xcode_version_num)
       self._xctestrun_obj = xctestrun.XctestRun(
           xctestrun_file_path, test_type)
     else:
@@ -140,37 +133,18 @@ class XctestSession(object):
           test_bundle_dir, self._sdk, app_under_test_dir=app_under_test_dir,
           original_test_type=test_type)
 
-      # xctestrun can only support in Xcode 8+.
-      # Since xctestrun approach is more flexiable to local debug and is easy to
-      # support tests_to_run feature. So in Xcode 8+, use xctestrun approach to
-      # run XCTest and Logic Test.
-      if (test_type in ios_constants.SUPPORTED_TEST_TYPES and
-          test_type != ios_constants.TestType.LOGIC_TEST and
-          xcode_info_util.GetXcodeVersionNumber() >= 800):
+      if test_type not in ios_constants.SUPPORTED_TEST_TYPES:
+        raise ios_errors.IllegalArgumentError(
+            'The test type %s is not supported. Supported test types are %s' %
+            (test_type, ios_constants.SUPPORTED_TEST_TYPES))
+
+      if test_type != ios_constants.TestType.LOGIC_TEST:
         xctestrun_factory = xctestrun.XctestRunFactory(
             app_under_test_dir, test_bundle_dir, self._sdk, self._device_arch,
             test_type, signing_options, self._work_dir)
         self._xctestrun_obj = xctestrun_factory.GenerateXctestrun()
-      elif test_type == ios_constants.TestType.XCUITEST:
-        raise ios_errors.IllegalArgumentError(
-            'Only supports running XCUITest under Xcode 8+. '
-            'Current xcode version is %s' %
-            xcode_info_util.GetXcodeVersionNumber())
-      elif test_type == ios_constants.TestType.XCTEST:
-        self._dummy_project_obj = dummy_project.DummyProject(
-            app_under_test_dir,
-            test_bundle_dir,
-            self._sdk,
-            ios_constants.TestType.XCTEST,
-            self._work_dir,
-            keychain_path=signing_options.get('keychain_path') or None)
-        self._dummy_project_obj.GenerateDummyProject()
-      elif test_type == ios_constants.TestType.LOGIC_TEST:
-        self._logic_test_bundle = test_bundle_dir
       else:
-        raise ios_errors.IllegalArgumentError(
-            'The test type %s is not supported. Supported test types are %s'
-            % (test_type, ios_constants.SUPPORTED_TEST_TYPES))
+        self._logic_test_bundle = test_bundle_dir
     self._prepared = True
 
   def SetLaunchOptions(self, launch_options):
@@ -207,20 +181,17 @@ class XctestSession(object):
           self._xctestrun_obj.DeleteXctestrunField('SystemAttachmentLifetime')
         except ios_errors.PlistError:
           pass
-    elif self._dummy_project_obj:
-      self._dummy_project_obj.SetEnvVars(launch_options.get('env_vars'))
-      self._dummy_project_obj.SetArgs(launch_options.get('args'))
-      self._dummy_project_obj.SetSkipTests(launch_options.get('skip_tests'))
     elif self._logic_test_bundle:
       self._logic_test_env_vars = launch_options.get('env_vars')
       self._logic_test_args = launch_options.get('args')
       self._logic_tests_to_run = launch_options.get('tests_to_run')
 
-  def RunTest(self, device_id):
+  def RunTest(self, device_id, os_version=None):
     """Runs test on the target device with the given device_id.
 
     Args:
       device_id: string, id of the device.
+      os_version: string, OS version of the device.
 
     Returns:
       A value of type runner_exit_codes.EXITCODE.
@@ -237,27 +208,24 @@ class XctestSession(object):
       exit_code = self._xctestrun_obj.Run(device_id, self._sdk,
                                           self._output_dir,
                                           self._startup_timeout_sec,
-                                          self._destination_timeout_sec)
-      for test_summaries_path in test_summaries_util.GetTestSummariesPaths(
-          self._output_dir):
-        try:
-          test_summaries_util.ParseTestSummaries(
-              test_summaries_path,
-              os.path.join(self._output_dir, 'Logs/Test/Attachments'),
-              True if self._disable_uitest_auto_screenshots else
-              exit_code == runner_exit_codes.EXITCODE.SUCCEEDED)
-        except ios_errors.PlistError as e:
-          logging.warning('Failed to parse test summaries %s: %s',
-                          test_summaries_path, str(e))
+                                          self._destination_timeout_sec,
+                                          os_version=os_version)
+      # The xcresult only contains raw data in Xcode 11 or later.
+      if xcode_info_util.GetXcodeVersionNumber() >= 1100:
+        test_log_dir = '%s/Logs/Test' % self._output_dir
+        xcresults = glob.glob('%s/*.xcresult' % test_log_dir)
+        for xcresult in xcresults:
+          xcresult_util.ExposeDiagnosticsRef(xcresult, test_log_dir)
+          shutil.rmtree(xcresult)
       return exit_code
-    elif self._dummy_project_obj:
-      return self._dummy_project_obj.RunXcTest(device_id, self._work_dir,
-                                               self._output_dir,
-                                               self._startup_timeout_sec)
     elif self._logic_test_bundle:
       return logic_test_util.RunLogicTestOnSim(
-          device_id, self._logic_test_bundle, self._logic_test_env_vars,
-          self._logic_test_args, self._logic_tests_to_run)
+          device_id,
+          self._logic_test_bundle,
+          self._logic_test_env_vars,
+          self._logic_test_args,
+          self._logic_tests_to_run,
+          os_version=os_version)
     else:
       raise ios_errors.XcodebuildTestError('Unexpected runtime error.')
 

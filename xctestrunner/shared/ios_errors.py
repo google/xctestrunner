@@ -45,3 +45,7 @@ class SimError(Exception):
 
 class XcodebuildTestError(Exception):
   """Exception class for simulator error."""
+
+
+class XcresultError(Exception):
+  """Exception class for parsing xcresult error."""

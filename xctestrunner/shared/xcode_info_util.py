@@ -18,6 +18,8 @@ import os
 import subprocess
 
 from xctestrunner.shared import ios_constants
+from xctestrunner.shared import version_util
+
 
 _xcode_version_number = None
 
@@ -27,19 +29,20 @@ def GetXcodeDeveloperPath():
   return subprocess.check_output(('xcode-select', '-p')).strip()
 
 
-# Xcode 11+'s Swift dylibs are configured in a way that does not allow them to load the correct
-# libswiftFoundation.dylib file from libXCTestSwiftSupport.dylib. This bug only affects tests that
-# run on simulators running iOS 12.1 or lower. To fix this bug, we need to provide explicit
-# fallbacks to the correct Swift dylibs that have been packaged with Xcode. This method returns the
-# path to that fallback directory.
+# Xcode 11+'s Swift dylibs are configured in a way that does not allow them to
+# load the correct libswiftFoundation.dylib file from
+# libXCTestSwiftSupport.dylib. This bug only affects tests that run on fallbacks
+# to the correct Swift dylibs that have been packaged with Xcode. This method
+# returns the path to that fallback directory.
 # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
 def GetSwift5FallbackLibsDir():
-  """Gets the directory for Swift5 fallback libraries."""
-  relativePath = "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0"
-  swiftLibsDir = os.path.join(GetXcodeDeveloperPath(), relativePath)
-  swiftLibPlatformDir = os.path.join(swiftLibsDir, ios_constants.SDK.IPHONESIMULATOR)
-  if os.path.exists(swiftLibPlatformDir):
-    return swiftLibPlatformDir
+  """Gets the Swift5 fallback libraries directory."""
+  relative_path = 'Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0'
+  swift_libs_dir = os.path.join(GetXcodeDeveloperPath(), relative_path)
+  swift_lib_platform_dir = os.path.join(swift_libs_dir,
+                                        ios_constants.SDK.IPHONESIMULATOR)
+  if os.path.exists(swift_lib_platform_dir):
+    return swift_lib_platform_dir
   return None
 
 
@@ -60,15 +63,9 @@ def GetXcodeVersionNumber():
   # Build version 8C1002
   output = subprocess.check_output(('xcodebuild', '-version'))
   xcode_version = output.split('\n')[0].split(' ')[1]
-  parts = xcode_version.split('.')
-  xcode_version_number = int(parts[0]) * 100
-  if len(parts) > 1:
-    xcode_version_number += int(parts[1]) * 10
-  if len(parts) > 2:
-    xcode_version_number += int(parts[2])
   # Add cache xcode_version_number to avoid calling subprocess multiple times.
   # It is expected that no one changes xcode during the test runner working.
-  _xcode_version_number = xcode_version_number
+  _xcode_version_number = version_util.GetVersionNumber(xcode_version)
   return _xcode_version_number
 
 

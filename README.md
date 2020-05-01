@@ -6,10 +6,10 @@ A tool for running prebuilt iOS tests on iOS real device and simulator.
 - It supports iOS 7+ iOS real device, iOS simulator.
 - It supports launch options configuration: test methods to run, additional
 environment variables, additional arguments.
-- It supports Xcode 7+.
+- It supports Xcode 8+.
 
 ## Prerequisites
-- Install Xcode (Xcode 7+). XCUITest support requires Xcode 8+.
+- Install Xcode (Xcode 8+). XCUITest support requires Xcode 8+.
 - [Install bazel](https://docs.bazel.build/install.html) (optional).
 - py module [biplist](https://github.com/wooster/biplist).
 

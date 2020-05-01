@@ -23,6 +23,7 @@ from xctestrunner.shared import bundle_util
 from xctestrunner.shared import ios_constants
 from xctestrunner.shared import ios_errors
 from xctestrunner.shared import plist_util
+from xctestrunner.shared import version_util
 from xctestrunner.shared import xcode_info_util
 from xctestrunner.test_runner import xcodebuild_test_executor
 
@@ -141,7 +142,7 @@ class XctestRun(object):
     self.SetXctestrunField('SkipTestIdentifiers', skip_tests)
 
   def Run(self, device_id, sdk, derived_data_dir, startup_timeout_sec,
-          destination_timeout_sec=None):
+          destination_timeout_sec=None, os_version=None):
     """Runs the test with generated xctestrun file in the specific device.
 
     Args:
@@ -151,10 +152,23 @@ class XctestRun(object):
       startup_timeout_sec: seconds until the xcodebuild command is deemed stuck.
       destination_timeout_sec: Wait for the given seconds while searching for
           the destination device.
+      os_version: os version of the device.
 
     Returns:
       A value of type runner_exit_codes.EXITCODE.
     """
+    # When running tests on iOS 12.1 or earlier simulator under Xcode 11 or
+    # later, it is required to add swift5 fallback libraries to environment
+    # variable.
+    # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
+    if (xcode_info_util.GetXcodeVersionNumber() >= 1100 and
+        sdk == ios_constants.SDK.IPHONESIMULATOR and os_version and
+        version_util.GetVersionNumber(os_version) < 1220):
+      new_env_var = {
+          'DYLD_FALLBACK_LIBRARY_PATH':
+              xcode_info_util.GetSwift5FallbackLibsDir()
+      }
+      self.SetTestEnvVars(new_env_var)
     logging.info('Running test-without-building with device %s', device_id)
     command = ['xcodebuild', 'test-without-building',
                '-xctestrun', self._xctestrun_file_path,
@@ -478,15 +492,6 @@ class XctestRunFactory(object):
                                    developer=developer_path),
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib' % developer_path
     }
-
-    # Fixes failures for UI test targets that depend on Swift libraries when running with Xcode 11
-    # on pre-iOS 12.2 simulators.
-    # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
-    # or missing necessary resources."
-    swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
-    if swift5FallbackLibsDir:
-      test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
-
     self._xctestrun_dict = {
         'IsUITestBundle': True,
         'SystemAttachmentLifetime': 'keepNever',
@@ -636,15 +641,6 @@ class XctestRunFactory(object):
         'DYLD_INSERT_LIBRARIES': dyld_insert_libs,
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib:' % developer_path
     }
-
-    # Fixes failures for test targets that depend on Swift libraries when running with Xcode 11
-    # on pre-iOS 12.2 simulators.
-    # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
-    # or missing necessary resources."
-    swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
-    if swift5FallbackLibsDir:
-      test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
-
     self._xctestrun_dict = {
         'TestHostPath': self._app_under_test_dir,
         'TestBundlePath': self._test_bundle_dir,
@@ -665,15 +661,6 @@ class XctestRunFactory(object):
         'DYLD_FRAMEWORK_PATH': dyld_framework_path,
         'DYLD_LIBRARY_PATH': dyld_framework_path
     }
-
-    # Fixes failures for unit test targets that depend on Swift libraries when running with Xcode 11
-    # on pre-iOS 12.2 simulators.
-    # Example failure message this resolves: "The bundle couldn’t be loaded because it is damaged
-    # or missing necessary resources."
-    swift5FallbackLibsDir = xcode_info_util.GetSwift5FallbackLibsDir()
-    if swift5FallbackLibsDir:
-      test_envs["DYLD_FALLBACK_LIBRARY_PATH"] = swift5FallbackLibsDir
-
     self._xctestrun_dict = {
         'TestBundlePath': self._test_bundle_dir,
         'TestHostPath': xcode_info_util.GetXctestToolPath(self._sdk),
