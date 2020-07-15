@@ -142,7 +142,8 @@ class XctestRun(object):
     self.SetXctestrunField('SkipTestIdentifiers', skip_tests)
 
   def Run(self, device_id, sdk, derived_data_dir, startup_timeout_sec,
-          destination_timeout_sec=None, os_version=None):
+          destination_timeout_sec=None, os_version=None,
+          result_bundle_path=None):
     """Runs the test with generated xctestrun file in the specific device.
 
     Args:
@@ -153,6 +154,7 @@ class XctestRun(object):
       destination_timeout_sec: Wait for the given seconds while searching for
           the destination device.
       os_version: os version of the device.
+      result_bundle_path: path to output a xcresult bundle to
 
     Returns:
       A value of type runner_exit_codes.EXITCODE.
@@ -161,7 +163,8 @@ class XctestRun(object):
     # later, it is required to add swift5 fallback libraries to environment
     # variable.
     # See https://github.com/bazelbuild/rules_apple/issues/684 for context.
-    if (xcode_info_util.GetXcodeVersionNumber() >= 1100 and
+    xcode_version = xcode_info_util.GetXcodeVersionNumber()
+    if (xcode_version >= 1100 and
         sdk == ios_constants.SDK.IPHONESIMULATOR and os_version and
         version_util.GetVersionNumber(os_version) < 1220):
       new_env_var = {
@@ -174,6 +177,11 @@ class XctestRun(object):
                '-xctestrun', self._xctestrun_file_path,
                '-destination', 'id=%s' % device_id,
                '-derivedDataPath', derived_data_dir]
+
+    if xcode_version >= 1100 and result_bundle_path:
+      shutil.rmtree(result_bundle_path, ignore_errors=True)
+      command.extend(['-resultBundlePath', result_bundle_path])
+
     if destination_timeout_sec:
       command.extend(['-destination-timeout', str(destination_timeout_sec)])
     exit_code, _ = xcodebuild_test_executor.XcodebuildTestExecutor(

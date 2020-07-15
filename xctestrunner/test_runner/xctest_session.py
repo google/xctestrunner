@@ -14,7 +14,6 @@
 
 """The module to run XCTEST based tests."""
 
-import glob
 import logging
 import os
 import shutil
@@ -205,18 +204,17 @@ class XctestSession(object):
           'XctestSession.Prepare first.')
 
     if self._xctestrun_obj:
+      result_bundle_path = os.path.join(
+        os.environ['TEST_UNDECLARED_OUTPUTS_DIR'], 'test.xcresult')
       exit_code = self._xctestrun_obj.Run(device_id, self._sdk,
                                           self._output_dir,
                                           self._startup_timeout_sec,
                                           self._destination_timeout_sec,
-                                          os_version=os_version)
+                                          os_version=os_version,
+                                          result_bundle_path=result_bundle_path)
       # The xcresult only contains raw data in Xcode 11 or later.
       if xcode_info_util.GetXcodeVersionNumber() >= 1100:
-        test_log_dir = '%s/Logs/Test' % self._output_dir
-        xcresults = glob.glob('%s/*.xcresult' % test_log_dir)
-        for xcresult in xcresults:
-          xcresult_util.ExposeDiagnosticsRef(xcresult, test_log_dir)
-          shutil.rmtree(xcresult)
+        xcresult_util.ExposeDiagnosticsRef(result_bundle_path, test_log_dir)
       return exit_code
     elif self._logic_test_bundle:
       return logic_test_util.RunLogicTestOnSim(
