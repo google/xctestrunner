@@ -67,6 +67,9 @@ Available keys for the json:
     In xctest, the functionality is the same as "args".
     In xcuitest, the process of app under test is different with the
     process of test.
+  keep_xcresult_data: bool
+    Whether or not to keep the xcresult bundle produced by the test run
+    in the output_dir.
   tests_to_run : array
     The specific test classes or test methods to run. Each item should be
     string and its format is Test-Class-Name[/Test-Method-Name]. It is supported
