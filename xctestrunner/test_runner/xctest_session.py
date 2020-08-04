@@ -215,9 +215,13 @@ class XctestSession(object):
                                           result_bundle_path=result_bundle_path)
       # The xcresult only contains raw data in Xcode 11 or later.
       if xcode_info_util.GetXcodeVersionNumber() >= 1100:
-        xcresult_util.ExposeDiagnosticsRef(result_bundle_path, test_log_dir)
-        if not self._keep_xcresult_data:
-          shutil.rmtree(result_bundle_path)
+        expose_xcresult = os.path.join(self._output_dir, 'ExposeXcresult')
+        try:
+          xcresult_util.ExpoesXcresult(result_bundle_path, expose_xcresult)
+          if not self._keep_xcresult_data:
+            shutil.rmtree(result_bundle_path)
+        except subprocess.CalledProcessError as e:
+          logging.warning(e.output)
       return exit_code
     elif self._logic_test_bundle:
       return logic_test_util.RunLogicTestOnSim(
