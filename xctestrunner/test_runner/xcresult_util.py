@@ -37,6 +37,8 @@ def ExposeDiagnosticsRef(xcresult_path, output_path):
     raise ios_errors.XcresultError(
         'Failed to get "ActionResult" from result bundle %s' % output)
 
+  if 'diagnosticsRef' not in action_result:
+    return
   diagnostics_id = action_result['diagnosticsRef']['id']['_value']
   subprocess.check_call([
       'xcrun', 'xcresulttool', 'export', '--path', xcresult_path,
