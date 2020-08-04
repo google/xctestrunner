@@ -59,6 +59,7 @@ class XctestSession(object):
     self._destination_timeout_sec = None
     self._xctestrun_obj = None
     self._prepared = False
+    self._keep_xcresult_data = True
     # The following fields are only for Logic Test.
     self._logic_test_bundle = None
     self._logic_test_env_vars = None
@@ -159,6 +160,7 @@ class XctestSession(object):
           'XctestSession.Prepare first.')
     if not launch_options:
       return
+    self._keep_xcresult_data = launch_options.get('keep_xcresult_data', True)
     self._startup_timeout_sec = launch_options.get('startup_timeout_sec')
     self._destination_timeout_sec = launch_options.get(
         'destination_timeout_sec')
@@ -214,6 +216,8 @@ class XctestSession(object):
       # The xcresult only contains raw data in Xcode 11 or later.
       if xcode_info_util.GetXcodeVersionNumber() >= 1100:
         xcresult_util.ExposeDiagnosticsRef(result_bundle_path, test_log_dir)
+        if not self._keep_xcresult_data:
+          shutil.rmtree(result_bundle_path)
       return exit_code
     elif self._logic_test_bundle:
       return logic_test_util.RunLogicTestOnSim(
