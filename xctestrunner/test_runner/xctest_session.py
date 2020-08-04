@@ -204,8 +204,7 @@ class XctestSession(object):
           'XctestSession.Prepare first.')
 
     if self._xctestrun_obj:
-      result_bundle_path = os.path.join(
-        os.environ['TEST_UNDECLARED_OUTPUTS_DIR'], 'test.xcresult')
+      result_bundle_path = os.path.join(self._output_dir, 'test.xcresult')
       exit_code = self._xctestrun_obj.Run(device_id, self._sdk,
                                           self._output_dir,
                                           self._startup_timeout_sec,
