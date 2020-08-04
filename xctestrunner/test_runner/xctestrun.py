@@ -634,13 +634,21 @@ class XctestRunFactory(object):
         os.path.basename(self._app_under_test_dir))[0]
     platform_name = 'iPhoneOS' if self._on_device else 'iPhoneSimulator'
     developer_path = '__PLATFORMS__/%s.platform/Developer' % platform_name
-    if xcode_info_util.GetXcodeVersionNumber() < 1000:
-      dyld_insert_libs = ('%s/Library/PrivateFrameworks/'
-                          'IDEBundleInjection.framework/IDEBundleInjection' %
-                          developer_path)
+
+    if self._on_device:
+      if xcode_info_util.GetXcodeVersionNumber() < 1000:
+        dyld_insert_libs = ('__TESTHOST__/Frameworks/'
+                            'IDEBundleInjection.framework/IDEBundleInjection')
+      else:
+        dyld_insert_libs = '__TESTHOST__/Frameworks/libXCTestBundleInject.dylib'
     else:
-      dyld_insert_libs = ('%s/usr/lib/libXCTestBundleInject.dylib' %
-                          developer_path)
+      if xcode_info_util.GetXcodeVersionNumber() < 1000:
+        dyld_insert_libs = ('%s/Library/PrivateFrameworks/'
+                            'IDEBundleInjection.framework/IDEBundleInjection' %
+                            developer_path)
+      else:
+        dyld_insert_libs = ('%s/usr/lib/libXCTestBundleInject.dylib' %
+                            developer_path)
     test_envs = {
         'XCInjectBundleInto': os.path.join('__TESTHOST__', app_under_test_name),
         'DYLD_FRAMEWORK_PATH': '__TESTROOT__:{developer}/Library/Frameworks:'
