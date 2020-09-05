@@ -17,7 +17,7 @@ py_library(
 
 par_binary(
     name = "ios_test_runner",
-    srcs = glob(
+    srcs = ["__init__.py"] + glob(
         ["test_runner/*.py"],
         exclude = ["test_runner/TestProject/**"],
     ),
