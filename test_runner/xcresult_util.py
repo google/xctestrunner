@@ -108,7 +108,7 @@ def _GetResultBundleObject(xcresult_path, bundle_id=None):
   ]
   if bundle_id:
     command.extend(['--id', bundle_id])
-  return json.loads(subprocess.check_output(command))
+  return json.loads(subprocess.check_output(command, text=True))
 
 
 def _GetFailureTestRefs(test_summary):

@@ -55,8 +55,8 @@ class XctestRun(object):
     self._xctestrun_file_path = xctestrun_file_path
     self._xctestrun_file_plist_obj = plist_util.Plist(xctestrun_file_path)
     # xctestrun file always has only key at root dict.
-    self._root_key = self._xctestrun_file_plist_obj.GetPlistField(
-        None).keys()[0]
+    self._root_key = next(iter(self._xctestrun_file_plist_obj.GetPlistField(
+        None)))
     self._test_type = test_type
     self._aut_bundle_id = aut_bundle_id
 

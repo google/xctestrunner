@@ -23,11 +23,11 @@ par_binary(
     ),
     compiler_args = [
         "--interpreter",
-        "/usr/bin/python2.7",
+        "/usr/bin/python3",
     ],
     data = glob(["test_runner/TestProject/**"]),
     main = "test_runner/ios_test_runner.py",
-    python_version = "PY2",
+    python_version = "PY3",
     deps = [
         ":shared",
         ":simulator",
