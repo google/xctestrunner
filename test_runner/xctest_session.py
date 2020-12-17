@@ -376,7 +376,7 @@ def _DetectTestType(test_bundle_dir):
   """Detects if the test bundle is XCUITest or XCTest."""
   test_bundle_exec_path = os.path.join(
       test_bundle_dir, os.path.splitext(os.path.basename(test_bundle_dir))[0])
-  output = subprocess.check_output(['nm', test_bundle_exec_path])
+  output = subprocess.check_output(['nm', test_bundle_exec_path], text=True)
   if 'XCUIApplication' in output:
     return ios_constants.TestType.XCUITEST
   else:

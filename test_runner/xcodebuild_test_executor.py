@@ -161,11 +161,11 @@ class XcodebuildTestExecutor(object):
     for i in range(max_attempts):
       process = subprocess.Popen(
           self._command, env=run_env, stdout=subprocess.PIPE,
-          stderr=subprocess.STDOUT)
+          stderr=subprocess.STDOUT, text=True)
       check_xcodebuild_stuck = CheckXcodebuildStuckThread(
           process, self._startup_timeout_sec)
       check_xcodebuild_stuck.start()
-      output = io.BytesIO()
+      output = io.StringIO()
       for stdout_line in iter(process.stdout.readline, ''):
         if not test_started:
           # Terminates the CheckXcodebuildStuckThread when test has started
@@ -346,4 +346,4 @@ def _FetchTestCacheFileDirs(xcodebuild_test_output, max_dir_num=1):
 
 def _ReadFileTailInShell(file_path, line):
   """Tails the file in the last several lines."""
-  return subprocess.check_output(['tail', '-%d' % line, file_path])
+  return subprocess.check_output(['tail', '-%d' % line, file_path], text=True)

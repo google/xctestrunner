@@ -17,19 +17,30 @@ py_library(
 
 par_binary(
     name = "ios_test_runner",
-    srcs = glob(
+    srcs = ["__init__.py"] + glob(
         ["test_runner/*.py"],
         exclude = ["test_runner/TestProject/**"],
     ),
     compiler_args = [
         "--interpreter",
-        "/usr/bin/python2.7",
+        "/usr/bin/python3",
     ],
     data = glob(["test_runner/TestProject/**"]),
     main = "test_runner/ios_test_runner.py",
-    python_version = "PY2",
+    python_version = "PY3",
     deps = [
         ":shared",
         ":simulator",
     ],
+)
+
+# Consumed by bazel tests.
+filegroup(
+    name = "for_bazel_tests",
+    testonly = 1,
+    srcs = glob(["**/*"]),
+    # Exposed publicly just so other rules can use this if they set up
+    # integration tests that need to copy all the support files into
+    # a temporary workspace for the tests.
+    visibility = ["//visibility:public"],
 )

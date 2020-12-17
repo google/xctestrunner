@@ -288,7 +288,7 @@ def _GetSdk(device_id):
     return ios_constants.SDK.IPHONESIMULATOR
 
   known_devices_output = subprocess.check_output(
-      ['instruments', '-s', 'devices'])
+      ['instruments', '-s', 'devices'], text=True)
   for line in known_devices_output.split('\n'):
     if device_id in line and '(Simulator)' not in line:
       return ios_constants.SDK.IPHONEOS

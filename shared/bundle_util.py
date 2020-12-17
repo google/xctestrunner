@@ -126,7 +126,7 @@ def GetCodesignIdentity(bundle_path):
   """
   command = ('codesign', '-dvv', bundle_path)
   process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
+                             stderr=subprocess.STDOUT, text=True)
   output = process.communicate()[0]
   for line in output.split('\n'):
     if line.startswith('Authority='):
@@ -151,7 +151,7 @@ def GetDevelopmentTeam(bundle_path):
   """
   command = ('codesign', '-dvv', bundle_path)
   process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
+                             stderr=subprocess.STDOUT, text=True)
   output = process.communicate()[0]
   for line in output.split('\n'):
     if line.startswith('TeamIdentifier='):
@@ -217,7 +217,7 @@ def EnableUIFileSharing(bundle_path, resigning=True):
 
 def GetFileArchTypes(file_path):
   """Gets the architecture types of the file."""
-  output = subprocess.check_output(['/usr/bin/lipo', file_path, '-archs'])
+  output = subprocess.check_output(['/usr/bin/lipo', file_path, '-archs'], text=True)
   return output.split(' ')
 
 

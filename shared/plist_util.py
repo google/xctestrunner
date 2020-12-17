@@ -271,7 +271,7 @@ def _GetPlistFieldByPlistBuddy(plist_path, field):
   """
   command = [PLIST_BUDDY, '-c', 'Print :"%s"' % field, plist_path]
   try:
-    return subprocess.check_output(command, stderr=subprocess.STDOUT).strip()
+    return subprocess.check_output(command, stderr=subprocess.STDOUT, text=True).strip()
   except subprocess.CalledProcessError as e:
     raise ios_errors.PlistError(
         'Failed to get field %s in plist %s: %s', field, plist_path, e.output)

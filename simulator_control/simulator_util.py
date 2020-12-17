@@ -681,7 +681,7 @@ def RunSimctlCommand(command):
   """Runs simctl command."""
   for i in range(_SIMCTL_MAX_ATTEMPTS):
     process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     stdout, stderr = process.communicate()
     if ios_constants.CORESIMULATOR_CHANGE_ERROR in stderr:
       output = stdout
