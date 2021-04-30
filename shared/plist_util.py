@@ -61,7 +61,8 @@ class Plist(object):
     """
     if self._plistlib_module is None:
       return _GetPlistFieldByPlistBuddy(self._plist_file_path, field)
-    plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+    with open(self._plist_file_path, 'rb') as f:
+      plist_root_object = self._plistlib_module.load(f)
     return _GetObjectWithField(plist_root_object, field)
 
   def HasPlistField(self, field):
@@ -106,7 +107,8 @@ class Plist(object):
       return
 
     if os.path.exists(self._plist_file_path):
-      plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+      with open(self._plist_file_path, 'rb') as f:
+        plist_root_object = self._plistlib_module.load(f)
     else:
       plist_root_object = {}
     keys_in_field = field.rsplit(':', 1)
@@ -142,7 +144,8 @@ class Plist(object):
       _DeletePlistFieldByPlistBuddy(self._plist_file_path, field)
       return
 
-    plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+    with open(self._plist_file_path, 'rb') as f:
+      plist_root_object = self._plistlib_module.load(f)
     keys_in_field = field.rsplit(':', 1)
     if len(keys_in_field) == 1:
       key = field
@@ -241,7 +244,8 @@ def _GetPlistLibModule(plist_file_path):
   if not os.path.exists(plist_file_path):
     return plistlib
   try:
-    plistlib.readPlist(plist_file_path)
+    with open(plist_file_path, 'rb') as f:
+      plistlib.load(f)
     return plistlib
   except xml.parsers.expat.ExpatError:
     if biplist is None:
