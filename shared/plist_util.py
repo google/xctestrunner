@@ -275,6 +275,8 @@ def _WritePlistByPlistLib(data, plist_path):
   variety of Python versions.
 
   Args:
+    data: an object, the value of the field to be added. It can be integer,
+        bool, string, array, dict.
     plist_path: string, full path of the .plist file.
   """
 
