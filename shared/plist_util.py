@@ -61,7 +61,7 @@ class Plist(object):
     """
     if self._plistlib_module is None:
       return _GetPlistFieldByPlistBuddy(self._plist_file_path, field)
-    plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+    plist_root_object = _ReadPlistByPlistLib(self._plist_file_path)
     return _GetObjectWithField(plist_root_object, field)
 
   def HasPlistField(self, field):
@@ -102,11 +102,11 @@ class Plist(object):
       _SetPlistFieldByPlistBuddy(self._plist_file_path, field, value)
       return
     if not field:
-      self._plistlib_module.writePlist(value, self._plist_file_path)
+      _WritePlistByPlistLib(value, self._plist_file_path)
       return
 
     if os.path.exists(self._plist_file_path):
-      plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+      plist_root_object = _ReadPlistByPlistLib(self._plist_file_path)
     else:
       plist_root_object = {}
     keys_in_field = field.rsplit(':', 1)
@@ -123,7 +123,7 @@ class Plist(object):
     except (KeyError, IndexError):
       raise ios_errors.PlistError('Failed to set key %s from object %s.'
                                   % (key, target_object))
-    self._plistlib_module.writePlist(plist_root_object, self._plist_file_path)
+    _WritePlistByPlistLib(plist_root_object, self._plist_file_path)
 
   def DeletePlistField(self, field):
     """Delete field in .plist file.
@@ -142,7 +142,7 @@ class Plist(object):
       _DeletePlistFieldByPlistBuddy(self._plist_file_path, field)
       return
 
-    plist_root_object = self._plistlib_module.readPlist(self._plist_file_path)
+    plist_root_object = _ReadPlistByPlistLib(self._plist_file_path)
     keys_in_field = field.rsplit(':', 1)
     if len(keys_in_field) == 1:
       key = field
@@ -159,7 +159,7 @@ class Plist(object):
       raise ios_errors.PlistError('Failed to delete key %s from object %s.'
                                   % (key, target_object))
 
-    self._plistlib_module.writePlist(plist_root_object, self._plist_file_path)
+    _WritePlistByPlistLib(plist_root_object, self._plist_file_path)
 
 
 def _GetObjectWithField(target_object, field):
@@ -241,7 +241,7 @@ def _GetPlistLibModule(plist_file_path):
   if not os.path.exists(plist_file_path):
     return plistlib
   try:
-    plistlib.readPlist(plist_file_path)
+    _ReadPlistByPlistLib(plist_file_path)
     return plistlib
   except xml.parsers.expat.ExpatError:
     if biplist is None:
@@ -250,6 +250,43 @@ def _GetPlistLibModule(plist_file_path):
           'binary format plist.',
           PLIST_BUDDY)
     return biplist
+
+
+def _ReadPlistByPlistLib(plist_path):
+  """Wrapper function to read .plist file that is compatible with a wide
+  variety of Python versions.
+
+  Args:
+    plist_path: string, full path of the .plist file.
+
+  Returns:
+    The unpacked root object.
+  """
+  # `plistlib.load` is only available since Python 3.4.
+  if hasattr(plistlib, "load"):
+    return plistlib.load(open(plist_path, 'rb'))
+  # `plistlib.readPlist` was deprecated since Python 3.4 and was deleted since
+  # Python 3.9.
+  return plistlib.readPlist(plist_path)
+
+
+def _WritePlistByPlistLib(data, plist_path):
+  """Wrapper function to write .plist file that is compatible with a wide
+  variety of Python versions.
+
+  Args:
+    data: an object, the value of the field to be added. It can be integer,
+        bool, string, array, dict.
+    plist_path: string, full path of the .plist file.
+  """
+
+  # `plistlib.dump` is only available since Python 3.4.
+  if hasattr(plistlib, "dump"):
+    plistlib.dump(data, open(plist_path, 'wb'))
+  else:
+    # `plistlib.writePlist` was deprecated since Python 3.4 and was deleted
+    # since Python 3.9.
+    plistlib.writePlist(data, plist_path)
 
 
 def _GetPlistFieldByPlistBuddy(plist_path, field):
