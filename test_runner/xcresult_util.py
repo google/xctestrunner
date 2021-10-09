@@ -21,7 +21,7 @@ import subprocess
 from xctestrunner.shared import ios_errors
 
 
-def ExpoesXcresult(xcresult_path, output_path):
+def ExposeXcresult(xcresult_path, output_path):
   """Exposes the files from xcresult.
 
   The files includes the diagnostics files and attachments files.
