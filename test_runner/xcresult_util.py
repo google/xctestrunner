@@ -21,7 +21,7 @@ import subprocess
 from xctestrunner.shared import ios_errors
 
 
-def ExpoesXcresult(xcresult_path, output_path):
+def ExposeXcresult(xcresult_path, output_path):
   """Exposes the files from xcresult.
 
   The files includes the diagnostics files and attachments files.
@@ -72,6 +72,11 @@ def _ExposeAttachments(xcresult_path, output_path, action_result):
   failure_test_ref_ids = _GetFailureTestRefs(root_tests_summary)
   for test_ref_id in failure_test_ref_ids:
     test_summary_result = _GetResultBundleObject(xcresult_path, test_ref_id)
+    # if the test results in an `expectedFailures` entry, there might be an
+    # `activitySummaries` field present.
+    if 'activitySummaries' not in test_summary_result:
+      continue
+
     activity_summaries = test_summary_result['activitySummaries']['_values']
     for activity_summary in activity_summaries:
       if 'attachments' in activity_summary:

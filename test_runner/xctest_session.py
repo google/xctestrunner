@@ -217,7 +217,7 @@ class XctestSession(object):
       if xcode_info_util.GetXcodeVersionNumber() >= 1100:
         expose_xcresult = os.path.join(self._output_dir, 'ExposeXcresult')
         try:
-          xcresult_util.ExpoesXcresult(result_bundle_path, expose_xcresult)
+          xcresult_util.ExposeXcresult(result_bundle_path, expose_xcresult)
           if not self._keep_xcresult_data:
             shutil.rmtree(result_bundle_path)
         except subprocess.CalledProcessError as e:
