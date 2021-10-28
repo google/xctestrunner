@@ -37,6 +37,7 @@ _PREFIX_RUNTIME_ID = 'com.apple.CoreSimulator.SimRuntime.'
 _SIM_OPERATION_MAX_ATTEMPTS = 3
 _SIMCTL_MAX_ATTEMPTS = 2
 _SIMULATOR_CREATING_TO_SHUTDOWN_TIMEOUT_SEC = 10
+_SIMULATOR_BOOTED_TIMEOUT_SEC = 10
 _SIMULATOR_SHUTDOWN_TIMEOUT_SEC = 30
 _SIM_ERROR_RETRY_INTERVAL_SEC = 2
 _SIM_CHECK_STATE_INTERVAL_SEC = 0.5
@@ -112,6 +113,28 @@ class Simulator(object):
       self._device_plist_object = plist_util.Plist(device_plist_path)
     return self._device_plist_object
 
+  def Boot(self):
+    """Boots the simulator as asynchronously.
+
+    Returns:
+      A subprocess.Popen object of the boot process.
+    """
+    RunSimctlCommand(['xcrun', 'simctl', 'boot', self.simulator_id])
+    self.WaitUntilStateBooted()
+    logging.info('The simulator %s is booted.', self.simulator_id)
+
+  def BootStatus(self):
+    """Monitor the simulator boot status asynchronously.
+
+    Returns:
+      A subprocess.Popen object of the boot status process.
+    """
+    return subprocess.Popen(
+        ['xcrun', 'simctl', 'bootstatus', self.simulator_id, '-b'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding='utf-8')
+
   def Shutdown(self):
     """Shuts down the simulator."""
     sim_state = self.GetSimulatorState()
@@ -144,14 +167,6 @@ class Simulator(object):
     Raises:
       ios_errors.SimError: The simulator's state is not SHUTDOWN.
     """
-    # In Xcode 9+, simctl can delete Booted simulator. In prior of Xcode 9,
-    # we have to shutdown the simulator first before deleting it.
-    if xcode_info_util.GetXcodeVersionNumber() < 900:
-      sim_state = self.GetSimulatorState()
-      if sim_state != ios_constants.SimState.SHUTDOWN:
-        raise ios_errors.SimError(
-            'Can only delete the simulator with state SHUTDOWN. The current '
-            'state of simulator %s is %s.' % (self._simulator_id, sim_state))
     command = ['xcrun', 'simctl', 'delete', self.simulator_id]
     if asynchronously:
       logging.info('Deleting simulator %s asynchronously.', self.simulator_id)
@@ -197,17 +212,16 @@ class Simulator(object):
 
   def GetAppDocumentsPath(self, app_bundle_id):
     """Gets the path of the app's Documents directory."""
-    if xcode_info_util.GetXcodeVersionNumber() >= 830:
-      try:
-        app_data_container = RunSimctlCommand([
-            'xcrun', 'simctl', 'get_app_container', self._simulator_id,
-            app_bundle_id, 'data'
-        ])
-        return os.path.join(app_data_container, 'Documents')
-      except ios_errors.SimError as e:
-        raise ios_errors.SimError(
-            'Failed to get data container of the app %s in simulator %s: %s' %
-            (app_bundle_id, self._simulator_id, str(e)))
+    try:
+      app_data_container = RunSimctlCommand([
+          'xcrun', 'simctl', 'get_app_container', self._simulator_id,
+          app_bundle_id, 'data'
+      ])
+      return os.path.join(app_data_container, 'Documents')
+    except ios_errors.SimError as e:
+      raise ios_errors.SimError(
+          'Failed to get data container of the app %s in simulator %s: %s' %
+          (app_bundle_id, self._simulator_id, str(e)))
 
     apps_dir = os.path.join(self.simulator_root_dir,
                             'data/Containers/Data/Application')
@@ -234,6 +248,25 @@ class Simulator(object):
     except ios_errors.SimError:
       return False
 
+  def WaitUntilStateBooted(self, timeout_sec=_SIMULATOR_BOOTED_TIMEOUT_SEC):
+    """Waits until the simulator state becomes BOOTED.
+
+    Args:
+      timeout_sec: int, timeout of waiting simulator state for becoming BOOTED
+        in seconds.
+
+    Raises:
+      ios_errors.SimError: when it is timeout to wait the simulator state
+          becomes BOOTED.
+    """
+    start_time = time.time()
+    while start_time + timeout_sec >= time.time():
+      time.sleep(_SIM_CHECK_STATE_INTERVAL_SEC)
+      if self.GetSimulatorState() == ios_constants.SimState.BOOTED:
+        return
+    raise ios_errors.SimError('Timeout to wait for simulator booted in %ss.' %
+                              timeout_sec)
+
   def WaitUntilStateShutdown(self, timeout_sec=_SIMULATOR_SHUTDOWN_TIMEOUT_SEC):
     """Waits until the simulator state becomes SHUTDOWN.
 
@@ -247,9 +280,9 @@ class Simulator(object):
     """
     start_time = time.time()
     while start_time + timeout_sec >= time.time():
+      time.sleep(_SIM_CHECK_STATE_INTERVAL_SEC)
       if self.GetSimulatorState() == ios_constants.SimState.SHUTDOWN:
         return
-      time.sleep(_SIM_CHECK_STATE_INTERVAL_SEC)
     raise ios_errors.SimError('Timeout to wait for simulator shutdown in %ss.' %
                               timeout_sec)
 
@@ -625,11 +658,7 @@ def _ValidateSimulatorTypeWithOsVersion(device_type, os_version):
 
 def QuitSimulatorApp():
   """Quits the Simulator.app."""
-  if xcode_info_util.GetXcodeVersionNumber() >= 700:
-    simulator_name = 'Simulator'
-  else:
-    simulator_name = 'iOS Simulator'
-  subprocess.Popen(['killall', simulator_name],
+  subprocess.Popen(['killall', 'Simulator'],
                    stdout=subprocess.PIPE,
                    stderr=subprocess.STDOUT)
 
@@ -681,7 +710,10 @@ def RunSimctlCommand(command):
   """Runs simctl command."""
   for i in range(_SIMCTL_MAX_ATTEMPTS):
     process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding='utf-8')
     stdout, stderr = process.communicate()
     if ios_constants.CORESIMULATOR_CHANGE_ERROR in stderr:
       output = stdout

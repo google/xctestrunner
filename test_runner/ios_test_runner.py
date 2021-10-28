@@ -27,7 +27,6 @@ import sys
 
 from xctestrunner.shared import ios_constants
 from xctestrunner.shared import ios_errors
-from xctestrunner.shared import xcode_info_util
 from xctestrunner.simulator_control import simulator_util
 from xctestrunner.test_runner import runner_exit_codes
 from xctestrunner.test_runner import xctest_session
@@ -102,6 +101,42 @@ def _AddGeneralArguments(parser):
            'test ends.')
 
 
+def _AddPrepareSubParser(subparsers):
+  """Adds sub parser for sub command `prepare`."""
+  def _Prepare(args):
+    """The function of sub command `prepare`."""
+    sdk = _PlatformToSdk(args.platform) if args.platform else _GetSdk(args.id)
+    device_arch = args.arch
+    with xctest_session.XctestSession(
+        sdk=sdk,
+        device_arch=device_arch,
+        work_dir=args.work_dir,
+        output_dir=args.output_dir) as session:
+      session.Prepare(
+          app_under_test=args.app_under_test_path,
+          test_bundle=args.test_bundle_path,
+          xctestrun_file_path=args.xctestrun,
+          test_type=args.test_type,
+          signing_options=_GetJson(args.signing_options_json_path))
+      session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
+
+  test_parser = subparsers.add_parser(
+      'prepare',
+      help='Prepare the working directory to run the test.')
+  required_arguments = test_parser.add_argument_group('Required arguments')
+  required_arguments.add_argument(
+      '--platform',
+      help='The platform of the device. The value can be ios_device or '
+           'ios_simulator.'
+  )
+  required_arguments.add_argument(
+      '--arch',
+      help='The architecture of the device. The value can be x86_64, armv7,'
+           'arm64, arm64e'
+  )
+  test_parser.set_defaults(func=_Prepare)
+
+
 def _AddTestSubParser(subparsers):
   """Adds sub parser for sub command `test`."""
   def _Test(args):
@@ -148,66 +183,32 @@ def _AddSimulatorTestSubParser(subparsers):
         sdk=ios_constants.SDK.IPHONESIMULATOR,
         device_arch=ios_constants.ARCH.X86_64,
         work_dir=args.work_dir, output_dir=args.output_dir) as session:
-      session.Prepare(
-          app_under_test=args.app_under_test_path,
-          test_bundle=args.test_bundle_path,
-          xctestrun_file_path=args.xctestrun,
-          test_type=args.test_type,
-          signing_options=_GetJson(args.signing_options_json_path))
-      session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
-
-      # In prior of Xcode 9, `xcodebuild test` will launch the Simulator.app
-      # process. If there is Simulator.app before running test, it will cause
-      # error later.
-      if xcode_info_util.GetXcodeVersionNumber() < 900:
-        simulator_util.QuitSimulatorApp()
-      max_attempts = 3
-      reboot_sim = False
-      for i in range(max_attempts):
-        if not reboot_sim:
-          simulator_id, _, _, _ = simulator_util.CreateNewSimulator(
-              device_type=args.device_type, os_version=args.os_version,
-              name_prefix=args.new_simulator_name_prefix)
-        reboot_sim = False
-
-        try:
-          # Don't use command "{Xcode_developer_dir}Applications/ \
-          # Simulator.app/Contents/MacOS/Simulator" to launch the Simulator.app.
-          # 1) `xcodebuild test` will handle the launch Simulator.
-          # 2) If there are two Simulator.app processes launched by command line
-          # and `xcodebuild test` starts to run on one of Simulator, the another
-          # Simulator.app will popup 'Unable to boot device in current state: \
-          # Booted' dialog and may cause potential error.
-          exit_code = session.RunTest(simulator_id)
-          if i < max_attempts - 1:
-            if exit_code == runner_exit_codes.EXITCODE.NEED_RECREATE_SIM:
-              logging.warning(
-                  'Will create a new simulator to retry running test.')
-              continue
-            if exit_code == runner_exit_codes.EXITCODE.NEED_REBOOT_DEVICE:
-              reboot_sim = True
-              logging.warning(
-                  'Will reboot the simulator to retry running test.')
-              continue
-          return exit_code
-        finally:
-          # 1. In prior of Xcode 9, `xcodebuild test` will launch the
-          # Simulator.app process. Quit the Simulator.app to avoid side effect.
-          # 2. Quit Simulator.app can also shutdown the simulator. To make sure
-          # the Simulator state to be SHUTDOWN, still call shutdown command
-          # later.
-          if xcode_info_util.GetXcodeVersionNumber() < 900:
-            simulator_util.QuitSimulatorApp()
-          simulator_obj = simulator_util.Simulator(simulator_id)
-          if reboot_sim:
-            simulator_obj.Shutdown()
-          else:
-            # In Xcode 9+, simctl can delete the Booted simulator.
-            # In prior of Xcode 9, we have to shutdown the simulator first
-            # before deleting it.
-            if xcode_info_util.GetXcodeVersionNumber() < 900:
-              simulator_obj.Shutdown()
-            simulator_obj.Delete()
+      simulator_id, _, os_version, _ = simulator_util.CreateNewSimulator(
+          device_type=args.device_type,
+          os_version=args.os_version,
+          name_prefix=args.new_simulator_name_prefix)
+      simulator_obj = simulator_util.Simulator(simulator_id)
+      hostless = args.app_under_test_path is None
+      try:
+        if not hostless:
+          simulator_obj.Boot()
+        session.Prepare(
+            app_under_test=args.app_under_test_path,
+            test_bundle=args.test_bundle_path,
+            xctestrun_file_path=args.xctestrun,
+            test_type=args.test_type,
+            signing_options=_GetJson(args.signing_options_json_path))
+        session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
+        if not hostless:
+          try:
+            simulator_obj.BootStatus().wait(timeout=60)
+          except subprocess.TimeoutExpired:
+            logging.warning(
+                'The simulator %s could not be booted in 60s. Will try to run '
+                'test directly.', simulator_id)
+        return session.RunTest(simulator_id, os_version=os_version)
+      finally:
+        simulator_obj.Delete()
 
   def _SimulatorTest(args):
     """The function of sub command `simulator_test`."""
@@ -250,6 +251,7 @@ def _BuildParser():
       formatter_class=argparse.RawTextHelpFormatter)
   _AddGeneralArguments(parser)
   subparsers = parser.add_subparsers(help='Sub-commands help')
+  _AddPrepareSubParser(subparsers)
   _AddTestSubParser(subparsers)
   _AddSimulatorTestSubParser(subparsers)
   return parser
@@ -279,23 +281,16 @@ def _PlatformToSdk(platform):
 
 def _GetSdk(device_id):
   """Gets the sdk of the target device with the given device_id."""
-  # The command `instruments -s devices` is much slower than
-  # `xcrun simctl list devices`. So use `xcrun simctl list devices` to check
-  # IPHONESIMULATOR SDK first.
-  simlist_devices_output = simulator_util.RunSimctlCommand(
-      ['xcrun', 'simctl', 'list', 'devices'])
-  if device_id in simlist_devices_output:
-    return ios_constants.SDK.IPHONESIMULATOR
-
-  known_devices_output = subprocess.check_output(
-      ['instruments', '-s', 'devices'], text=True)
-  for line in known_devices_output.split('\n'):
-    if device_id in line and '(Simulator)' not in line:
-      return ios_constants.SDK.IPHONEOS
+  devices_list_output = subprocess.check_output(
+      ['xcrun', 'xcdevice', 'list']).decode('utf-8')
+  for device_info in json.loads(devices_list_output):
+    if device_info['identifier'] == device_id:
+      return ios_constants.SDK.IPHONESIMULATOR if device_info[
+          'simulator'] else ios_constants.SDK.IPHONEOS
 
   raise ios_errors.IllegalArgumentError(
       'The device with id %s can not be found. The known devices are %s.' %
-      (device_id, known_devices_output))
+      (device_id, devices_list_output))
 
 
 def _GetDeviceArch(device_id, sdk):

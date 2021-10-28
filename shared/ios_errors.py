@@ -49,3 +49,4 @@ class XcodebuildTestError(Exception):
 
 class XcresultError(Exception):
   """Exception class for parsing xcresult error."""
+

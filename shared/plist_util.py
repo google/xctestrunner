@@ -14,20 +14,10 @@
 
 """Utility class for managing Plist files."""
 
-import logging
 import os
 import plistlib
-import subprocess
-import xml.parsers.expat
 
 from xctestrunner.shared import ios_errors
-try:
-  import biplist
-except ImportError:
-  biplist = None
-
-
-PLIST_BUDDY = '/usr/libexec/PlistBuddy'
 
 
 class Plist(object):
@@ -41,7 +31,6 @@ class Plist(object):
     """
     self._plist_file_path = plist_file_path
     # Module to read the .plist file.
-    self._plistlib_module = _GetPlistLibModule(plist_file_path)
 
   def GetPlistField(self, field):
     """View specific field in the .plist file.
@@ -59,9 +48,8 @@ class Plist(object):
     Raises:
       ios_errors.PlistError: the field does not exist in the plist dict.
     """
-    if self._plistlib_module is None:
-      return _GetPlistFieldByPlistBuddy(self._plist_file_path, field)
-    plist_root_object = _ReadPlistByPlistLib(self._plist_file_path)
+    with open(self._plist_file_path, 'rb') as plist_file:
+      plist_root_object = plistlib.load(plist_file)
     return _GetObjectWithField(plist_root_object, field)
 
   def HasPlistField(self, field):
@@ -98,15 +86,14 @@ class Plist(object):
     Raises:
       ios_errors.PlistError: the field does not exist in the .plist file's dict.
     """
-    if self._plistlib_module is None:
-      _SetPlistFieldByPlistBuddy(self._plist_file_path, field, value)
-      return
     if not field:
-      _WritePlistByPlistLib(value, self._plist_file_path)
+      with open(self._plist_file_path, 'wb') as plist_file:
+        plistlib.dump(value, plist_file)
       return
 
     if os.path.exists(self._plist_file_path):
-      plist_root_object = _ReadPlistByPlistLib(self._plist_file_path)
+      with open(self._plist_file_path, 'rb') as plist_file:
+        plist_root_object = plistlib.load(plist_file)
     else:
       plist_root_object = {}
     keys_in_field = field.rsplit(':', 1)
@@ -123,7 +110,8 @@ class Plist(object):
     except (KeyError, IndexError):
       raise ios_errors.PlistError('Failed to set key %s from object %s.'
                                   % (key, target_object))
-    _WritePlistByPlistLib(plist_root_object, self._plist_file_path)
+    with open(self._plist_file_path, 'wb') as plist_file:
+      plistlib.dump(plist_root_object, plist_file)
 
   def DeletePlistField(self, field):
     """Delete field in .plist file.
@@ -138,11 +126,8 @@ class Plist(object):
     Raises:
       ios_errors.PlistError: the field does not exist in the .plist file's dict.
     """
-    if self._plistlib_module is None:
-      _DeletePlistFieldByPlistBuddy(self._plist_file_path, field)
-      return
-
-    plist_root_object = _ReadPlistByPlistLib(self._plist_file_path)
+    with open(self._plist_file_path, 'rb') as plist_file:
+      plist_root_object = plistlib.load(plist_file)
     keys_in_field = field.rsplit(':', 1)
     if len(keys_in_field) == 1:
       key = field
@@ -159,7 +144,8 @@ class Plist(object):
       raise ios_errors.PlistError('Failed to delete key %s from object %s.'
                                   % (key, target_object))
 
-    _WritePlistByPlistLib(plist_root_object, self._plist_file_path)
+    with open(self._plist_file_path, 'wb') as plist_file:
+      plistlib.dump(plist_root_object, plist_file)
 
 
 def _GetObjectWithField(target_object, field):
@@ -221,140 +207,3 @@ def _ParseKey(target_object, key):
           % (key, target_object))
   raise ios_errors.PlistError('The object %s is not dict or list.'
                               % target_object)
-
-
-def _GetPlistLibModule(plist_file_path):
-  """Gets the module to read the target .plist file.
-
-  .plist file has two kinds of format: XML format and binary format. If the
-  .plist file is XML format, it should be read by plistlib and don't use
-  biplist which will change XML format plist to binary plist.
-
-  Args:
-    plist_file_path: string, full path of the .plist file.
-
-  Returns:
-    a module to read the target .plist file or None if the model can not be
-      imported.
-  """
-  # If the plist file path does not exist, use plistlib by default.
-  if not os.path.exists(plist_file_path):
-    return plistlib
-  try:
-    _ReadPlistByPlistLib(plist_file_path)
-    return plistlib
-  except xml.parsers.expat.ExpatError:
-    if biplist is None:
-      logging.info(
-          'Failed to import biplist module. Will use tool %s to handle the '
-          'binary format plist.',
-          PLIST_BUDDY)
-    return biplist
-
-
-def _ReadPlistByPlistLib(plist_path):
-  """Wrapper function to read .plist file that is compatible with a wide
-  variety of Python versions.
-
-  Args:
-    plist_path: string, full path of the .plist file.
-
-  Returns:
-    The unpacked root object.
-  """
-  # `plistlib.load` is only available since Python 3.4.
-  if hasattr(plistlib, "load"):
-    return plistlib.load(open(plist_path, 'rb'))
-  # `plistlib.readPlist` was deprecated since Python 3.4 and was deleted since
-  # Python 3.9.
-  return plistlib.readPlist(plist_path)
-
-
-def _WritePlistByPlistLib(data, plist_path):
-  """Wrapper function to write .plist file that is compatible with a wide
-  variety of Python versions.
-
-  Args:
-    data: an object, the value of the field to be added. It can be integer,
-        bool, string, array, dict.
-    plist_path: string, full path of the .plist file.
-  """
-
-  # `plistlib.dump` is only available since Python 3.4.
-  if hasattr(plistlib, "dump"):
-    plistlib.dump(data, open(plist_path, 'wb'))
-  else:
-    # `plistlib.writePlist` was deprecated since Python 3.4 and was deleted
-    # since Python 3.9.
-    plistlib.writePlist(data, plist_path)
-
-
-def _GetPlistFieldByPlistBuddy(plist_path, field):
-  """View specific field in the .plist file by PlistBuddy tool.
-
-  Args:
-    plist_path: string, the path of plist file.
-    field: string, the field consist of property key names delimited by
-      colons. List(array) items are specified by a zero-based integer index.
-      Examples
-        :CFBundleShortVersionString
-        :CFBundleDocumentTypes:2:CFBundleTypeExtensions
-
-  Returns:
-    the object of the plist's field.
-
-  Raises:
-    ios_errors.PlistError: the field does not exist in the plist dict.
-  """
-  command = [PLIST_BUDDY, '-c', 'Print :"%s"' % field, plist_path]
-  try:
-    return subprocess.check_output(command, stderr=subprocess.STDOUT, text=True).strip()
-  except subprocess.CalledProcessError as e:
-    raise ios_errors.PlistError(
-        'Failed to get field %s in plist %s: %s', field, plist_path, e.output)
-
-
-def _SetPlistFieldByPlistBuddy(plist_path, field, value):
-  """Set field with provided value in .plist file.
-
-  Args:
-    plist_path: string, the path of plist file.
-    field: string, the field consist of property key names delimited by
-      colons. List(array) items are specified by a zero-based integer index.
-      Examples
-        :CFBundleShortVersionString
-        :CFBundleDocumentTypes:2:CFBundleTypeExtensions
-    value: a object, the value of the field to be added. It can be integer,
-        bool, string, array, dict.
-
-  Raises:
-    ios_errors.PlistError: the field does not exist in the .plist file's dict.
-  """
-  command = [PLIST_BUDDY, '-c', 'Set :"%s" "%s"' % (field, value), plist_path]
-  try:
-    subprocess.check_output(command, stderr=subprocess.STDOUT)
-  except subprocess.CalledProcessError as e:
-    raise ios_errors.PlistError('Failed to set field %s in plist %s: %s'
-                                % (field, plist_path, e.output))
-
-
-def _DeletePlistFieldByPlistBuddy(plist_path, field):
-  """Delete field in .plist file.
-
-  Args:
-    plist_path: string, the path of plist file.
-    field: string, the field consist of property key names delimited by
-      colons. List(array) items are specified by a zero-based integer index.
-      Examples
-        :CFBundleShortVersionString
-        :CFBundleDocumentTypes:2:CFBundleTypeExtensions
-
-  Raises:
-    ios_errors.PlistError: the field does not exist in the .plist file's dict.
-  """
-  command = [PLIST_BUDDY, '-c', 'Delete :"%s"' % field, plist_path]
-  try:
-    subprocess.check_output(command, stderr=subprocess.STDOUT)
-  except subprocess.CalledProcessError as e:
-    raise ios_errors.PlistError('Failed to delete field %s in plist %s: %s'
-                                % (field, plist_path, e.output))

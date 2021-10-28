@@ -26,7 +26,30 @@ _xcode_version_number = None
 
 def GetXcodeDeveloperPath():
   """Gets the active developer path of Xcode command line tools."""
-  return subprocess.check_output(('xcode-select', '-p'), text=True).strip()
+  return subprocess.check_output(('xcode-select', '-p')).decode('utf-8').strip()
+
+
+def GetXcodeVersionNumber():
+  """Gets the Xcode version number.
+
+  E.g. if xcode version is 8.2.1, the xcode version number is 821.
+
+  Returns:
+    integer, xcode version number.
+  """
+  global _xcode_version_number
+  if _xcode_version_number is not None:
+    return _xcode_version_number
+
+  # Example output:
+  # Xcode 8.2.1
+  # Build version 8C1002
+  output = subprocess.check_output(('xcodebuild', '-version')).decode('utf-8')
+  xcode_version = output.split('\n')[0].split(' ')[1]
+  # Add cache xcode_version_number to avoid calling subprocess multiple times.
+  # It is expected that no one changes xcode during the test runner working.
+  _xcode_version_number = version_util.GetVersionNumber(xcode_version)
+  return _xcode_version_number
 
 
 # Xcode 11+'s Swift dylibs are configured in a way that does not allow them to
@@ -46,39 +69,17 @@ def GetSwift5FallbackLibsDir():
   return None
 
 
-def GetXcodeVersionNumber():
-  """Gets the Xcode version number.
-
-  E.g. if xcode version is 8.2.1, the xcode version number is 821.
-
-  Returns:
-    integer, xcode version number.
-  """
-  global _xcode_version_number
-  if _xcode_version_number is not None:
-    return _xcode_version_number
-
-  # Example output:
-  # Xcode 8.2.1
-  # Build version 8C1002
-  output = subprocess.check_output(('xcodebuild', '-version'), text=True)
-  xcode_version = output.split('\n')[0].split(' ')[1]
-  # Add cache xcode_version_number to avoid calling subprocess multiple times.
-  # It is expected that no one changes xcode during the test runner working.
-  _xcode_version_number = version_util.GetVersionNumber(xcode_version)
-  return _xcode_version_number
-
-
 def GetSdkPlatformPath(sdk):
   """Gets the selected SDK platform path."""
   return subprocess.check_output(
-      ['xcrun', '--sdk', sdk, '--show-sdk-platform-path'], text=True).strip()
+      ['xcrun', '--sdk', sdk,
+       '--show-sdk-platform-path']).decode('utf-8').strip()
 
 
 def GetSdkVersion(sdk):
   """Gets the selected SDK version."""
-  return subprocess.check_output(
-      ['xcrun', '--sdk', sdk, '--show-sdk-version'], text=True).strip()
+  return subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-version'
+                                 ]).decode('utf-8').strip()
 
 
 def GetXctestToolPath(sdk):
@@ -89,7 +90,8 @@ def GetXctestToolPath(sdk):
 
 def GetDarwinUserCacheDir():
   """Gets the path of Darwin user cache directory."""
-  return subprocess.check_output(('getconf', 'DARWIN_USER_CACHE_DIR'), text=True).rstrip()
+  return subprocess.check_output(
+      ('getconf', 'DARWIN_USER_CACHE_DIR')).decode('utf-8').rstrip()
 
 
 def GetXcodeEmbeddedAppDeltasDir():

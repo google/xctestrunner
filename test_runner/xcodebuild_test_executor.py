@@ -21,7 +21,6 @@ import random
 import re
 import shutil
 import subprocess
-import sys
 import threading
 import time
 
@@ -50,6 +49,9 @@ _TOO_MANY_INSTANCES_ALREADY_RUNNING = ('Too many instances of this service are '
                                        'already running.')
 _LOST_CONNECTION_ERROR = 'Lost connection to testmanagerd'
 _LOST_CONNECTION_TO_DTSERVICEHUB_ERROR = 'Lost connection to DTServiceHub'
+_DEVICE_NO_LONGER_CONNECTED = 'This device is no longer connected'
+_UNABLE_FIND_DEVICE_IDENTIFIER = 'Unable to find device with identifier'
+_BUNDLE_DAMAGED = 'The bundle is damaged or missing necessary resources.'
 
 
 class CheckXcodebuildStuckThread(threading.Thread):
@@ -130,11 +132,12 @@ class XcodebuildTestExecutor(object):
     self._startup_timeout_sec = (
         startup_timeout_sec or _XCODEBUILD_TEST_STARTUP_TIMEOUT_SEC)
 
-  def Execute(self, return_output=True):
+  def Execute(self, return_output=True, result_bundle_path=None):
     """Executes the xcodebuild test command.
 
     Args:
       return_output: bool, whether save output in the execution result.
+      result_bundle_path: string, path of the result bundle.
 
     Returns:
       a tuple of two fields:
@@ -159,14 +162,16 @@ class XcodebuildTestExecutor(object):
     test_failed = False
 
     for i in range(max_attempts):
+      if result_bundle_path and os.path.exists(result_bundle_path):
+        shutil.rmtree(result_bundle_path, ignore_errors=True)
       process = subprocess.Popen(
           self._command, env=run_env, stdout=subprocess.PIPE,
-          stderr=subprocess.STDOUT, text=True)
+          stderr=subprocess.STDOUT, encoding='ascii', errors='ignore')
       check_xcodebuild_stuck = CheckXcodebuildStuckThread(
           process, self._startup_timeout_sec)
       check_xcodebuild_stuck.start()
       output = io.StringIO()
-      for stdout_line in iter(process.stdout.readline, ''):
+      for stdout_line in process.stdout:
         if not test_started:
           # Terminates the CheckXcodebuildStuckThread when test has started
           # or XCTRunner.app has started.
@@ -188,8 +193,7 @@ class XcodebuildTestExecutor(object):
           if self._failed_signal and self._failed_signal in stdout_line:
             test_failed = True
 
-        sys.stdout.write(stdout_line)
-        sys.stdout.flush()
+        print(stdout_line, flush=True, end='')
         # If return_output is false, the output is only used for checking error
         # cause and deleting cached files (_DeleteTestCacheFileDirs method).
         if return_output or not test_started:
@@ -210,10 +214,13 @@ class XcodebuildTestExecutor(object):
           return self._GetResultForXcodebuildStuck(output, return_output)
 
         output_str = output.getvalue()
+        # Don't need to retry the case for the damaged test bundle.
+        if _BUNDLE_DAMAGED in output_str:
+          return (runner_exit_codes.EXITCODE.TEST_NOT_START,
+                  output_str if return_output else None)
+
         if self._sdk == ios_constants.SDK.IPHONEOS:
-          if ((re.search(_DEVICE_TYPE_WAS_NULL_PATTERN, output_str) or
-               _LOST_CONNECTION_ERROR in output_str or
-               _LOST_CONNECTION_TO_DTSERVICEHUB_ERROR in output_str) and
+          if (self._NeedRetryForDeviceTesting(output_str) and
               i < max_attempts - 1):
             logging.warning(
                 'Failed to launch test on the device. Will relaunch again '
@@ -298,6 +305,14 @@ class XcodebuildTestExecutor(object):
       return True
     return False
 
+  def _NeedRetryForDeviceTesting(self, output_str):
+    """Returns true if the device testing needs retry."""
+    return (re.search(_DEVICE_TYPE_WAS_NULL_PATTERN, output_str) or
+            _LOST_CONNECTION_ERROR in output_str or
+            _LOST_CONNECTION_TO_DTSERVICEHUB_ERROR in output_str or
+            _DEVICE_NO_LONGER_CONNECTED in output_str or
+            _UNABLE_FIND_DEVICE_IDENTIFIER in output_str)
+
 
 def _DeleteTestCacheFileDirs(xcodebuild_test_output, sdk, test_type):
   """Deletes the cache files of the test session according to arguments."""
@@ -346,4 +361,5 @@ def _FetchTestCacheFileDirs(xcodebuild_test_output, max_dir_num=1):
 
 def _ReadFileTailInShell(file_path, line):
   """Tails the file in the last several lines."""
-  return subprocess.check_output(['tail', '-%d' % line, file_path], text=True)
+  return subprocess.check_output(['tail', '-%d' % line,
+                                  file_path]).decode('utf-8')

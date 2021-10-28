@@ -126,8 +126,8 @@ def GetCodesignIdentity(bundle_path):
   """
   command = ('codesign', '-dvv', bundle_path)
   process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, text=True)
-  output = process.communicate()[0]
+                             stderr=subprocess.STDOUT)
+  output = process.communicate()[0].decode('utf-8')
   for line in output.split('\n'):
     if line.startswith('Authority='):
       return line[len('Authority='):]
@@ -151,8 +151,8 @@ def GetDevelopmentTeam(bundle_path):
   """
   command = ('codesign', '-dvv', bundle_path)
   process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, text=True)
-  output = process.communicate()[0]
+                             stderr=subprocess.STDOUT)
+  output = process.communicate()[0].decode('utf-8')
   for line in output.split('\n'):
     if line.startswith('TeamIdentifier='):
       return line[len('TeamIdentifier='):]
@@ -195,7 +195,8 @@ def CodesignBundle(bundle_path,
           stderr=subprocess.PIPE)
   except subprocess.CalledProcessError as e:
     raise ios_errors.BundleError(
-        'Failed to codesign the bundle %s: %s' % (bundle_path, e.output))
+        'Failed to codesign the bundle %s with %s: %s' %
+        (bundle_path, identity, e.output))
 
 
 def EnableUIFileSharing(bundle_path, resigning=True):
@@ -217,7 +218,8 @@ def EnableUIFileSharing(bundle_path, resigning=True):
 
 def GetFileArchTypes(file_path):
   """Gets the architecture types of the file."""
-  output = subprocess.check_output(['/usr/bin/lipo', file_path, '-archs'], text=True)
+  output = subprocess.check_output(['/usr/bin/lipo', file_path,
+                                    '-archs']).decode('utf-8').strip()
   return output.split(' ')
 
 

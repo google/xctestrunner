@@ -55,8 +55,8 @@ class XctestRun(object):
     self._xctestrun_file_path = xctestrun_file_path
     self._xctestrun_file_plist_obj = plist_util.Plist(xctestrun_file_path)
     # xctestrun file always has only key at root dict.
-    self._root_key = next(iter(self._xctestrun_file_plist_obj.GetPlistField(
-        None)))
+    self._root_key = list(
+        self._xctestrun_file_plist_obj.GetPlistField(None).keys())[0]
     self._test_type = test_type
     self._aut_bundle_id = aut_bundle_id
 
@@ -193,7 +193,7 @@ class XctestRun(object):
         device_id=device_id,
         app_bundle_id=self._aut_bundle_id,
         startup_timeout_sec=startup_timeout_sec).Execute(
-            return_output=False)
+            return_output=False, result_bundle_path=result_bundle_path)
     return exit_code
 
   @property
@@ -474,13 +474,11 @@ class XctestRunFactory(object):
       _CopyAndSignFramework(
           os.path.join(platform_library_path, 'Frameworks/XCTest.framework'),
           runner_app_frameworks_dir, test_bundle_signing_identity)
-      xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
-      if xcode_version_num >= 900:
-        _CopyAndSignFramework(
-            os.path.join(platform_library_path,
-                         'PrivateFrameworks/XCTAutomationSupport.framework'),
-            runner_app_frameworks_dir, test_bundle_signing_identity)
-      if xcode_version_num >= 1100:
+      _CopyAndSignFramework(
+          os.path.join(platform_library_path,
+                       'PrivateFrameworks/XCTAutomationSupport.framework'),
+          runner_app_frameworks_dir, test_bundle_signing_identity)
+      if xcode_info_util.GetXcodeVersionNumber() >= 1100:
         _CopyAndSignLibFile(
             os.path.join(platform_path, _LIB_XCTEST_SWIFT_RELATIVE_PATH),
             runner_app_frameworks_dir, test_bundle_signing_identity)
@@ -531,21 +529,32 @@ class XctestRunFactory(object):
     uitest_runner_app_name = '%s-Runner' % test_bundle_name
     uitest_runner_app = os.path.join(self._test_root_dir,
                                      uitest_runner_app_name + '.app')
+    if os.path.exists(uitest_runner_app):
+      shutil.rmtree(uitest_runner_app)
     shutil.copytree(xctrunner_app, uitest_runner_app)
     uitest_runner_exec = os.path.join(uitest_runner_app, uitest_runner_app_name)
     shutil.move(
         os.path.join(uitest_runner_app, 'XCTRunner'), uitest_runner_exec)
     # XCTRunner is multi-archs. When launching XCTRunner on arm64e device, it
     # will be launched as arm64e process by default. If the test bundle is arm64
-    # bundle, the XCTRunner which hosts the test bundle will failed to be
+    # bundle, the XCTRunner which hosts the test bundle will fail to be
     # launched. So removing the arm64e arch from XCTRunner can resolve this
     # case.
+    test_executable = os.path.join(self._test_bundle_dir, test_bundle_name)
     if self._device_arch == ios_constants.ARCH.ARM64E:
-      test_executable = os.path.join(self._test_bundle_dir, test_bundle_name)
       test_archs = bundle_util.GetFileArchTypes(test_executable)
       if ios_constants.ARCH.ARM64E not in test_archs:
         bundle_util.RemoveArchType(uitest_runner_exec,
                                    ios_constants.ARCH.ARM64E)
+    # XCTRunner is multi-archs. When launching XCTRunner on Apple silicon
+    # simulator, it will be launched as arm64 process by default. If the test
+    # bundle is still x86_64, the XCTRunner which hosts the test bundle will
+    # fail to be launched. So removing the arm64 arch from XCTRunner can
+    # resolve this case.
+    elif not self._on_device:
+      test_archs = bundle_util.GetFileArchTypes(test_executable)
+      if ios_constants.ARCH.X86_64 in test_archs:
+        bundle_util.RemoveArchType(uitest_runner_exec, ios_constants.ARCH.ARM64)
 
     runner_app_info_plist_path = os.path.join(uitest_runner_app, 'Info.plist')
     info_plist = plist_util.Plist(runner_app_info_plist_path)
@@ -605,20 +614,11 @@ class XctestRunFactory(object):
           os.path.join(platform_path,
                        'Developer/Library/Frameworks/XCTest.framework'),
           app_under_test_frameworks_dir, app_under_test_signing_identity)
-      xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
-      if xcode_version_num < 1000:
-        bundle_injection_lib = os.path.join(
-            platform_path, 'Developer/Library/PrivateFrameworks/'
-            'IDEBundleInjection.framework')
-        _CopyAndSignFramework(bundle_injection_lib,
-                              app_under_test_frameworks_dir,
-                              app_under_test_signing_identity)
-      else:
-        bundle_injection_lib = os.path.join(
-            platform_path, 'Developer/usr/lib/libXCTestBundleInject.dylib')
-        _CopyAndSignLibFile(bundle_injection_lib, app_under_test_frameworks_dir,
-                            app_under_test_signing_identity)
-      if xcode_version_num >= 1100:
+      bundle_injection_lib = os.path.join(
+          platform_path, 'Developer/usr/lib/libXCTestBundleInject.dylib')
+      _CopyAndSignLibFile(bundle_injection_lib, app_under_test_frameworks_dir,
+                          app_under_test_signing_identity)
+      if xcode_info_util.GetXcodeVersionNumber() >= 1100:
         _CopyAndSignFramework(
             os.path.join(
                 platform_path, 'Developer/Library/PrivateFrameworks/'
@@ -626,6 +626,22 @@ class XctestRunFactory(object):
             app_under_test_frameworks_dir, app_under_test_signing_identity)
         _CopyAndSignLibFile(
             os.path.join(platform_path, _LIB_XCTEST_SWIFT_RELATIVE_PATH),
+            app_under_test_frameworks_dir, app_under_test_signing_identity)
+      if xcode_info_util.GetXcodeVersionNumber() >= 1300:
+        _CopyAndSignFramework(
+            os.path.join(
+                platform_path, 'Developer/Library/PrivateFrameworks/'
+                'XCUIAutomation.framework'),
+            app_under_test_frameworks_dir, app_under_test_signing_identity)
+        _CopyAndSignFramework(
+            os.path.join(
+                platform_path, 'Developer/Library/PrivateFrameworks/'
+                'XCTestCore.framework'),
+            app_under_test_frameworks_dir, app_under_test_signing_identity)
+        _CopyAndSignFramework(
+            os.path.join(
+                platform_path, 'Developer/Library/PrivateFrameworks/'
+                'XCUnit.framework'),
             app_under_test_frameworks_dir, app_under_test_signing_identity)
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
@@ -636,19 +652,10 @@ class XctestRunFactory(object):
     developer_path = '__PLATFORMS__/%s.platform/Developer' % platform_name
 
     if self._on_device:
-      if xcode_info_util.GetXcodeVersionNumber() < 1000:
-        dyld_insert_libs = ('__TESTHOST__/Frameworks/'
-                            'IDEBundleInjection.framework/IDEBundleInjection')
-      else:
-        dyld_insert_libs = '__TESTHOST__/Frameworks/libXCTestBundleInject.dylib'
+      dyld_insert_libs = '__TESTHOST__/Frameworks/libXCTestBundleInject.dylib'
     else:
-      if xcode_info_util.GetXcodeVersionNumber() < 1000:
-        dyld_insert_libs = ('%s/Library/PrivateFrameworks/'
-                            'IDEBundleInjection.framework/IDEBundleInjection' %
-                            developer_path)
-      else:
-        dyld_insert_libs = ('%s/usr/lib/libXCTestBundleInject.dylib' %
-                            developer_path)
+      dyld_insert_libs = ('%s/usr/lib/libXCTestBundleInject.dylib' %
+                          developer_path)
     test_envs = {
         'XCInjectBundleInto': os.path.join('__TESTHOST__', app_under_test_name),
         'DYLD_FRAMEWORK_PATH': '__TESTROOT__:{developer}/Library/Frameworks:'

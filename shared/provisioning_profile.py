@@ -88,7 +88,7 @@ class ProvisiongProfile(object):
       command.extend(['-k', self._keychain_path])
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output = process.communicate()
+    output = process.communicate()[0].decode('utf-8')
     if process.poll() != 0:
       raise ios_errors.ProvisioningProfileError(output)
     if not os.path.exists(decode_provisioning_profile):
