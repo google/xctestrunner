@@ -14,6 +14,7 @@
 
 """The helper classes to run logic test."""
 
+import os
 import subprocess
 import sys
 
@@ -62,6 +63,10 @@ def RunLogicTestOnSim(sim_id,
       version_util.GetVersionNumber(os_version) < 1220):
     key = _SIMCTL_ENV_VAR_PREFIX + 'DYLD_FALLBACK_LIBRARY_PATH'
     simctl_env_vars[key] = xcode_info_util.GetSwift5FallbackLibsDir()
+  # We need to set the DEVELOPER_DIR to ensure xcrun works correctly
+  developer_dir = os.environ.get('DEVELOPER_DIR')
+  if developer_dir:
+    simctl_env_vars['DEVELOPER_DIR'] = developer_dir
   command = [
       'xcrun', 'simctl', 'spawn', '-s', sim_id,
       xcode_info_util.GetXctestToolPath(ios_constants.SDK.IPHONESIMULATOR)]
