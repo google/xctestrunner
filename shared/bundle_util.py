@@ -228,6 +228,10 @@ def RemoveArchType(file_path, arch_type):
   subprocess.check_call(
       ['/usr/bin/lipo', file_path, '-remove', arch_type, '-output', file_path])
 
+def LeaveOnlyArchType(file_path, arch_type):
+  """Remove the other architecture types for the file."""
+  subprocess.check_call(
+      ['/usr/bin/lipo', file_path, '-thin', arch_type, '-output', file_path])
 
 def _ExtractBundleFile(target_dir, bundle_extension):
   """Extract single bundle file with given extension.
