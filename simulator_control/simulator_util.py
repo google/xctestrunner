@@ -715,14 +715,11 @@ def RunSimctlCommand(command):
         stderr=subprocess.PIPE,
         encoding='utf-8')
     stdout, stderr = process.communicate()
-    if ios_constants.CORESIMULATOR_CHANGE_ERROR in stderr:
-      output = stdout
-    else:
-      output = '\n'.join([stdout, stderr])
-    output = output.strip()
+    all_output = '\n'.join([stdout, stderr])
+    output = stdout.strip()
     if process.poll() != 0:
       if (i < (_SIMCTL_MAX_ATTEMPTS - 1) and
-          ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in output):
+          ios_constants.CORESIMULATOR_INTERRUPTED_ERROR in all_output):
         continue
       raise ios_errors.SimError(output)
     return output

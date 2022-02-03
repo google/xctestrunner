@@ -44,8 +44,6 @@ TEST_STARTED_SIGNAL = 'Test Suite'
 XCTRUNNER_STARTED_SIGNAL = 'Running tests...'
 
 CORESIMULATOR_INTERRUPTED_ERROR = 'CoreSimulatorService connection interrupted'
-CORESIMULATOR_CHANGE_ERROR = ('CoreSimulator detected Xcode.app relocation or '
-                              'CoreSimulatorService version change.')
 
 LAUNCH_OPTIONS_JSON_HELP = (
     """The path of json file, which contains options of launching test.
