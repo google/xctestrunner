@@ -499,7 +499,7 @@ class XctestRunFactory(object):
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib' % developer_path
     }
     self._xctestrun_dict = {
-        'ProductModuleName': self._test_name,
+        'ProductModuleName': self._test_name.replace("-", "_"),
         'IsUITestBundle': True,
         'SystemAttachmentLifetime': 'keepNever',
         'TestBundlePath': self._test_bundle_dir,
@@ -666,7 +666,7 @@ class XctestRunFactory(object):
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib:' % developer_path
     }
     self._xctestrun_dict = {
-        'ProductModuleName': self._test_name,
+        'ProductModuleName': self._test_name.replace("-", "_"),
         'TestHostPath': self._app_under_test_dir,
         'TestBundlePath': self._test_bundle_dir,
         'IsAppHostedTestBundle': True,
@@ -687,7 +687,7 @@ class XctestRunFactory(object):
         'DYLD_LIBRARY_PATH': dyld_framework_path
     }
     self._xctestrun_dict = {
-        'ProductModuleName': self._test_name,
+        'ProductModuleName': self._test_name.replace("-", "_"),
         'TestBundlePath': self._test_bundle_dir,
         'TestHostPath': xcode_info_util.GetXctestToolPath(self._sdk),
         'TestingEnvironmentVariables': test_envs,
