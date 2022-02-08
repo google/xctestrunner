@@ -14,6 +14,7 @@
 
 """The helper classes to run logic test."""
 
+from dataclasses import replace
 import os
 import shutil
 import subprocess
@@ -71,7 +72,7 @@ def RunLogicTestOnSim(sim_id,
   if developer_dir:
     simctl_env_vars['DEVELOPER_DIR'] = developer_dir
 
-  xctest_tool = os.path.join(tempfile.mkdtemp(), "xctest")
+  xctest_tool = xcode_info_util.GetXctestToolPath(ios_constants.SDK.IPHONESIMULATOR)
 
   test_bundle_name = os.path.splitext(os.path.basename(test_bundle_path))[0]
   test_executable = os.path.join(test_bundle_path, test_bundle_name)
@@ -79,11 +80,13 @@ def RunLogicTestOnSim(sim_id,
   
   # if a logic bundle is built w/ x86 on Apple silicon, it won't be able to launch on the ARM64 sim; rework the xctest to fix this
   if ios_constants.ARCH.X86_64 in test_archs and len(test_archs) == 1:
+    replacement_xctest_tool = os.path.join(tempfile.mkdtemp(), "xctest")
     bundle_util.LeaveOnlyArchType(
-      xcode_info_util.GetXctestToolPath(ios_constants.SDK.IPHONESIMULATOR),
       xctest_tool,
+      replacement_xctest_tool,
       ios_constants.ARCH.X86_64
     )
+    xctest_tool = replacement_xctest_tool
     platform_developer_dir = os.path.join(xcode_info_util.GetSdkPlatformPath(ios_constants.SDK.IPHONESIMULATOR), "Developer")
     simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + "DYLD_FALLBACK_LIBRARY_PATH"] = "{0}/usr/lib".format(platform_developer_dir)
     simctl_env_vars[_SIMCTL_ENV_VAR_PREFIX + "DYLD_FALLBACK_FRAMEWORK_PATH"] = "{0}/Library/Frameworks:{0}/Library/Private/Frameworks".format(platform_developer_dir)
