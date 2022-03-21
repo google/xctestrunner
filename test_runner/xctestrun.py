@@ -488,20 +488,17 @@ class XctestRunFactory(object):
           identity=test_bundle_signing_identity)
       if xcode_info_util.GetXcodeVersionNumber() >= 1300:
         _CopyAndSignFramework(
-            os.path.join(
-                platform_path, 'Developer/Library/PrivateFrameworks/'
-                'XCUIAutomation.framework'),
-            runner_app_frameworks_dir, test_bundle_signing_identity)
+          os.path.join(platform_library_path,
+                       'PrivateFrameworks/XCUIAutomation.framework'),
+          runner_app_frameworks_dir, test_bundle_signing_identity)
         _CopyAndSignFramework(
-            os.path.join(
-                platform_path, 'Developer/Library/PrivateFrameworks/'
-                'XCTestCore.framework'),
-            runner_app_frameworks_dir, test_bundle_signing_identity)
+          os.path.join(platform_library_path,
+                       'PrivateFrameworks/XCTestCore.framework'),
+          runner_app_frameworks_dir, test_bundle_signing_identity)
         _CopyAndSignFramework(
-            os.path.join(
-                platform_path, 'Developer/Library/PrivateFrameworks/'
-                'XCUnit.framework'),
-            runner_app_frameworks_dir, test_bundle_signing_identity)
+          os.path.join(platform_library_path,
+                       'PrivateFrameworks/XCUnit.framework'),
+          runner_app_frameworks_dir, test_bundle_signing_identity)
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
