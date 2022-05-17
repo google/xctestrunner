@@ -191,7 +191,7 @@ def _AddSimulatorTestSubParser(subparsers):
       hostless = args.app_under_test_path is None
       try:
         if not hostless:
-          simulator_obj.Boot()
+          simulator_obj.Boot(args.simulator_language)
         session.Prepare(
             app_under_test=args.app_under_test_path,
             test_bundle=args.test_bundle_path,
@@ -238,6 +238,10 @@ def _AddSimulatorTestSubParser(subparsers):
            'The new simulator name will be the value of concatenating name '
            'prefix with simulator type and os version. '
            'E.g., New-iPhone 6 Plus-10.2.')
+  test_parser.add_argument(
+      '--simulator_language',
+      help='The system language of the simulator at creation time, e.g `ja`. '
+           'Note: Do not set this if you create multiple simulators simutaneously.')
   test_parser.set_defaults(func=_SimulatorTest)
 
 

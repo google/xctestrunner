@@ -113,13 +113,20 @@ class Simulator(object):
       self._device_plist_object = plist_util.Plist(device_plist_path)
     return self._device_plist_object
 
-  def Boot(self):
+  def Boot(self, simulator_language=None):
     """Boots the simulator as asynchronously.
 
+    Args:
+      simulator_language: string, the language of the simulator at startup time, e.g. 'ja'.
     Returns:
       A subprocess.Popen object of the boot process.
     """
     RunSimctlCommand(['xcrun', 'simctl', 'boot', self.simulator_id])
+    if simulator_language:
+      RunSimctlCommand(['xcrun', 'simctl', 'spawn', self.simulator_id,
+          'defaults', 'write', 'Apple Global Domain', 'AppleLanguages',
+          '-array', simulator_language])
+      RespringAllSimulators()
     self.WaitUntilStateBooted()
     logging.info('The simulator %s is booted.', self.simulator_id)
 
@@ -305,7 +312,7 @@ class Simulator(object):
     return _SIMULATOR_STATES_MAPPING[state_num]
 
 
-def CreateNewSimulator(device_type=None, os_version=None, name_prefix=None):
+def CreateNewSimulator(device_type=None, os_version=None, name_prefix=None, language=None):
   """Creates a new simulator according to arguments.
 
   If neither device_type nor os_version is given, will use the latest iOS
@@ -659,6 +666,13 @@ def _ValidateSimulatorTypeWithOsVersion(device_type, os_version):
 def QuitSimulatorApp():
   """Quits the Simulator.app."""
   subprocess.Popen(['killall', 'Simulator'],
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT)
+
+
+def RespringAllSimulators():
+  """Restarts the SpringBoard.app in all booted simulators."""
+  subprocess.Popen(['killall', '-HUP', 'SpringBoard'],
                    stdout=subprocess.PIPE,
                    stderr=subprocess.STDOUT)
 
