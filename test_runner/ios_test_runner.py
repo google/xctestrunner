@@ -99,6 +99,12 @@ def _AddGeneralArguments(parser):
            '2) the screenshots of every test stages (XCUITest).\n'
            'If directory is specified, the directory will not be deleted after '
            'test ends.')
+  optional_arguments.add_argument(
+    '--force_xcodebuild',
+    help='Forces the use of xcodebuild, specifically for use within logic test. '
+          'Defaults to False.',
+    action='store_true')
+
 
 
 def _AddPrepareSubParser(subparsers):
@@ -111,7 +117,8 @@ def _AddPrepareSubParser(subparsers):
         sdk=sdk,
         device_arch=device_arch,
         work_dir=args.work_dir,
-        output_dir=args.output_dir) as session:
+        output_dir=args.output_dir,
+        force_xcodebuild=args.force_xcodebuild) as session:
       session.Prepare(
           app_under_test=args.app_under_test_path,
           test_bundle=args.test_bundle_path,
@@ -147,7 +154,8 @@ def _AddTestSubParser(subparsers):
         sdk=sdk,
         device_arch=device_arch,
         work_dir=args.work_dir,
-        output_dir=args.output_dir) as session:
+        output_dir=args.output_dir,
+        force_xcodebuild=args.force_xcodebuild) as session:
       session.Prepare(
           app_under_test=args.app_under_test_path,
           test_bundle=args.test_bundle_path,
@@ -182,7 +190,9 @@ def _AddSimulatorTestSubParser(subparsers):
     with xctest_session.XctestSession(
         sdk=ios_constants.SDK.IPHONESIMULATOR,
         device_arch=ios_constants.ARCH.X86_64,
-        work_dir=args.work_dir, output_dir=args.output_dir) as session:
+        work_dir=args.work_dir, 
+        output_dir=args.output_dir,
+        force_xcodebuild=args.force_xcodebuild) as session:
       simulator_id, _, os_version, _ = simulator_util.CreateNewSimulator(
           device_type=args.device_type,
           os_version=args.os_version,
