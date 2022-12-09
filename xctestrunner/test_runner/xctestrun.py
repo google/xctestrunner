@@ -275,7 +275,8 @@ class XctestRunFactory(object):
                sdk=ios_constants.SDK.IPHONESIMULATOR,
                device_arch=ios_constants.ARCH.X86_64,
                test_type=ios_constants.TestType.XCUITEST,
-               signing_options=None, work_dir=None):
+               signing_options=None, work_dir=None,
+               product_module_name=None):
     """Initializes the XctestRun object.
 
     If arg work_dir is provided, the original app under test file and test
@@ -292,6 +293,7 @@ class XctestRunFactory(object):
       signing_options: dict, the signing app options. See
           ios_constants.SIGNING_OPTIONS_JSON_HELP for details.
       work_dir: string, work directory which contains run files.
+      product_module_name: string, forwarded into the xctestrun.
 
     Raises:
       IllegalArgumentError: when the sdk or test type is not supported.
@@ -302,6 +304,7 @@ class XctestRunFactory(object):
     self._sdk = sdk
     self._device_arch = device_arch
     self._test_type = test_type
+    self._product_module_name = product_module_name
     if self._sdk == ios_constants.SDK.IPHONEOS:
       self._on_device = True
       self._signing_options = signing_options
@@ -511,7 +514,7 @@ class XctestRunFactory(object):
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib' % developer_path
     }
     self._xctestrun_dict = {
-        'ProductModuleName': self._test_name.replace("-", "_"),
+        'ProductModuleName': self._product_module_name or self._test_name.replace("-", "_"),
         'IsUITestBundle': True,
         'SystemAttachmentLifetime': 'keepNever',
         'TestBundlePath': self._test_bundle_dir,
@@ -678,7 +681,7 @@ class XctestRunFactory(object):
         'DYLD_LIBRARY_PATH': '__TESTROOT__:%s/usr/lib:' % developer_path
     }
     self._xctestrun_dict = {
-        'ProductModuleName': self._test_name.replace("-", "_"),
+        'ProductModuleName': self._product_module_name or self._test_name.replace("-", "_"),
         'TestHostPath': self._app_under_test_dir,
         'TestBundlePath': self._test_bundle_dir,
         'IsAppHostedTestBundle': True,
@@ -699,7 +702,7 @@ class XctestRunFactory(object):
         'DYLD_LIBRARY_PATH': dyld_framework_path
     }
     self._xctestrun_dict = {
-        'ProductModuleName': self._test_name.replace("-", "_"),
+        'ProductModuleName': self._product_module_name or self._test_name.replace("-", "_"),
         'TestBundlePath': self._test_bundle_dir,
         'TestHostPath': xcode_info_util.GetXctestToolPath(self._sdk),
         'TestingEnvironmentVariables': test_envs,
