@@ -32,7 +32,7 @@ from xctestrunner.test_runner import xctestrun
 class XctestSession(object):
   """The class that runs XCTEST based tests."""
 
-  def __init__(self, sdk, device_arch, work_dir=None, output_dir=None):
+  def __init__(self, sdk, device_arch, work_dir=None, output_dir=None, force_xcodebuild=False):
     """Initializes the XctestSession object.
 
     If work_dir is not provdied, will create a temp direcotry to be work_dir and
@@ -54,6 +54,7 @@ class XctestSession(object):
     self._work_dir = work_dir
     self._delete_work_dir = True
     self._output_dir = output_dir
+    self._force_xcodebuild = force_xcodebuild
     self._delete_output_dir = True
     self._startup_timeout_sec = None
     self._destination_timeout_sec = None
@@ -131,14 +132,15 @@ class XctestSession(object):
           self._work_dir, app_under_test, test_bundle)
       test_type = _FinalizeTestType(
           test_bundle_dir, self._sdk, app_under_test_dir=app_under_test_dir,
-          original_test_type=test_type)
+          original_test_type=test_type, force_xcodebuild=self._force_xcodebuild)
 
       if test_type not in ios_constants.SUPPORTED_TEST_TYPES:
         raise ios_errors.IllegalArgumentError(
             'The test type %s is not supported. Supported test types are %s' %
             (test_type, ios_constants.SUPPORTED_TEST_TYPES))
 
-      if test_type != ios_constants.TestType.LOGIC_TEST:
+      if test_type != ios_constants.TestType.LOGIC_TEST or (
+        test_type == ios_constants.TestType.LOGIC_TEST and self._force_xcodebuild):
         xctestrun_factory = xctestrun.XctestRunFactory(
             app_under_test_dir, test_bundle_dir, self._sdk, self._device_arch,
             test_type, signing_options, self._work_dir)
@@ -321,7 +323,7 @@ def _PrepareBundles(working_dir, app_under_test_path, test_bundle_path):
 
 
 def _FinalizeTestType(
-    test_bundle_dir, sdk, app_under_test_dir=None, original_test_type=None):
+    test_bundle_dir, sdk, app_under_test_dir=None, original_test_type=None, force_xcodebuild=False):
   """Finalizes the test type of the test session according to the args.
 
   If original_test_type is not given, will auto detect the test bundle.
@@ -367,8 +369,11 @@ def _FinalizeTestType(
           'app under test is not given.')
   if (not app_under_test_dir and
       test_type != ios_constants.TestType.LOGIC_TEST):
-    raise ios_errors.IllegalArgumentError(
-        'The app under test is required in test type %s.' % test_type)
+      if force_xcodebuild:
+        test_type = ios_constants.TestType.LOGIC_TEST
+      else:
+        raise ios_errors.IllegalArgumentError(
+          'The app under test is required in test type %s.' % test_type)
   return test_type
 
 
