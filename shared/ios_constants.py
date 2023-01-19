@@ -80,7 +80,7 @@ Available keys for the json:
     Whether captures screenshots automatically in ui test. If yes, will save the
     screenshots when the test failed. By default, it is false. Prior Xcode 9,
     this option does not work and the auto screenshot is enable by default.
-  startup_timeout_seconds: int
+  startup_timeout_sec: int
     Seconds until the xcodebuild command is deemed stuck.
   destination_timeout_sec: int
     Wait for the given seconds while searching for the destination device.
