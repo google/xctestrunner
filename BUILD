@@ -2,12 +2,12 @@ package(default_visibility = ["//visibility:public"])
 
 py_library(
     name = "shared",
-    srcs = glob(["shared/*.py"]),
+    srcs = glob(["xctestrunner/shared/*.py"]),
 )
 
 py_library(
     name = "simulator",
-    srcs = glob(["simulator_control/*.py"]),
+    srcs = glob(["xctestrunner/simulator_control/*.py"]),
     deps = [
         ":shared",
     ],
@@ -15,10 +15,10 @@ py_library(
 
 py_binary(
     name = "ios_test_runner",
-    srcs = ["__init__.py"] + glob(
-        ["test_runner/*.py"],
+    srcs = ["xctestrunner/__init__.py"] + glob(
+        ["xctestrunner/test_runner/*.py"],
     ),
-    main = "test_runner/ios_test_runner.py",
+    main = "xctestrunner/test_runner/ios_test_runner.py",
     python_version = "PY3",
     deps = [
         ":shared",
