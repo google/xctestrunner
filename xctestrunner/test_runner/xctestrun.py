@@ -182,6 +182,9 @@ class XctestRun(object):
       shutil.rmtree(result_bundle_path, ignore_errors=True)
       command.extend(['-resultBundlePath', result_bundle_path])
 
+    if xcode_version >= 1410:
+      command.extend(['-collect-test-diagnostics', 'Never'])
+
     if destination_timeout_sec:
       command.extend(['-destination-timeout', str(destination_timeout_sec)])
     exit_code, _ = xcodebuild_test_executor.XcodebuildTestExecutor(
