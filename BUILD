@@ -15,7 +15,7 @@ py_library(
 
 py_binary(
     name = "ios_test_runner",
-    srcs = ["xctestrunner/__init__.py"] + glob(
+    srcs = ["__init__.py", "xctestrunner/__init__.py"] + glob(
         ["xctestrunner/test_runner/*.py"],
     ),
     main = "xctestrunner/test_runner/ios_test_runner.py",
