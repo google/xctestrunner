@@ -24,6 +24,7 @@ import json
 import logging
 import subprocess
 import sys
+import uuid
 
 from xctestrunner.shared import ios_constants
 from xctestrunner.shared import ios_errors
@@ -141,8 +142,9 @@ def _AddTestSubParser(subparsers):
   """Adds sub parser for sub command `test`."""
   def _Test(args):
     """The function of sub command `test`."""
-    sdk = _PlatformToSdk(args.platform) if args.platform else _GetSdk(args.id)
-    device_arch = _GetDeviceArch(args.id, sdk)
+    device_id = _GetSimID(args.id)
+    sdk = _PlatformToSdk(args.platform) if args.platform else _GetSdk(device_id)
+    device_arch = _GetDeviceArch(device_id, sdk)
     with xctest_session.XctestSession(
         sdk=sdk,
         device_arch=device_arch,
@@ -155,7 +157,7 @@ def _AddTestSubParser(subparsers):
           test_type=args.test_type,
           signing_options=_GetJson(args.signing_options_json_path))
       session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
-      return session.RunTest(args.id)
+      return session.RunTest(device_id)
 
   test_parser = subparsers.add_parser(
       'test',
@@ -165,7 +167,7 @@ def _AddTestSubParser(subparsers):
   required_arguments.add_argument(
       '--id',
       required=True,
-      help='The device id. The device can be iOS real device or simulator.')
+      help='The device identifier or name. The device can be iOS real device or simulator.')
   optional_arguments = test_parser.add_argument_group('Optional arguments')
   optional_arguments.add_argument(
       '--platform',
@@ -266,6 +268,36 @@ def _GetJson(json_path):
       except ValueError as e:
         raise ios_errors.IllegalArgumentError(e)
   return None
+
+
+def _GetSimID(device_id_or_name):
+  """Gets the identifier of the target device based on 'device_id_or_name'.
+  
+  Returns:
+    uuid identifier for a specific simulator found by identifier or name.
+  """
+
+  def _is_valid_uuid(uuid_str):
+    try:
+      uuid_obj = uuid.UUID(uuid_str)
+    except ValueError:
+      return False
+    return str(uuid_obj) == uuid_str
+
+  # If valid uuid, assume it's an explicit sim identifier to avoid running
+  # the expensive `xcdevice list` command.
+  if _is_valid_uuid(device_id_or_name):
+    return device_id_or_name
+
+  # Assume the `id` argument is the name of the desired simulator.
+  devices_list_output = subprocess.check_output(
+      ['xcrun', 'xcdevice', 'list']).decode('utf-8')
+  for device_info in json.loads(devices_list_output):
+    if device_info['name'] == device_id_or_name:
+      return device_info['identifier']
+
+  raise ios_errors.IllegalArgumentError(
+      'The device with identifier or name %s can not be found.' % device_id_or_name)
 
 
 def _PlatformToSdk(platform):
