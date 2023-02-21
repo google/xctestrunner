@@ -279,10 +279,10 @@ def _GetSimID(device_id_or_name):
 
   def _is_valid_uuid(uuid_str):
     try:
-      uuid_obj = uuid.UUID(uuid_str)
+      _ = uuid.UUID(uuid_str)
     except ValueError:
       return False
-    return str(uuid_obj) == uuid_str
+    return True
 
   # If valid uuid, assume it's an explicit sim identifier to avoid running
   # the expensive `xcdevice list` command.
