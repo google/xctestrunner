@@ -502,6 +502,11 @@ class XctestRunFactory(object):
           os.path.join(platform_library_path,
                        'PrivateFrameworks/XCUnit.framework'),
           runner_app_frameworks_dir, test_bundle_signing_identity)
+      if xcode_info_util.GetXcodeVersionNumber() >= 1430:
+         _CopyAndSignFramework(
+           os.path.join(platform_library_path,
+                    'PrivateFrameworks/XCTestSupport.framework'),
+           runner_app_frameworks_dir, test_bundle_signing_identity)
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
@@ -659,6 +664,15 @@ class XctestRunFactory(object):
                 platform_path, 'Developer/Library/PrivateFrameworks/'
                 'XCUnit.framework'),
             app_under_test_frameworks_dir, app_under_test_signing_identity)
+      if xcode_info_util.GetXcodeVersionNumber() >= 1430:
+        _CopyAndSignFramework(
+            os.path.join(
+                platform_path,
+                'Developer/Library/PrivateFrameworks/XCTestSupport.framework',
+            ),
+            app_under_test_frameworks_dir,
+            app_under_test_signing_identity,
+        )
       bundle_util.CodesignBundle(self._test_bundle_dir)
       bundle_util.CodesignBundle(self._app_under_test_dir)
 
