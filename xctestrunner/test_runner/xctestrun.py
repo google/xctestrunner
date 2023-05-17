@@ -183,7 +183,7 @@ class XctestRun(object):
       command.extend(['-resultBundlePath', result_bundle_path])
 
     if xcode_version >= 1410:
-      command.extend(['-collect-test-diagnostics', 'Never'])
+      command.extend(['-collect-test-diagnostics=never'])
 
     if destination_timeout_sec:
       command.extend(['-destination-timeout', str(destination_timeout_sec)])
