@@ -177,7 +177,7 @@ class XctestSession(object):
       if launch_options.get('uitest_auto_screenshots'):
         self._disable_uitest_auto_screenshots = False
         # By default, this SystemAttachmentLifetime field is in the generated
-        # xctestrun.plist.
+        # test.xctestrun.
         try:
           self._xctestrun_obj.DeleteXctestrunField('SystemAttachmentLifetime')
         except ios_errors.PlistError:

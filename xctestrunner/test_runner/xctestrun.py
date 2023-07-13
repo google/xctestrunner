@@ -342,7 +342,7 @@ class XctestRunFactory(object):
       return self._xctestrun_obj
     if self._work_dir:
       self._test_root_dir = os.path.join(self._work_dir, 'TEST_ROOT')
-      xctestrun_file_path = os.path.join(self._test_root_dir, 'xctestrun.plist')
+      xctestrun_file_path = os.path.join(self._test_root_dir, 'test.xctestrun')
       if os.path.exists(xctestrun_file_path):
         logging.info('Skips generating xctestrun file which is generated.')
         self._xctestrun_obj = XctestRun(xctestrun_file_path)
@@ -370,7 +370,7 @@ class XctestRunFactory(object):
     elif self._test_type == ios_constants.TestType.LOGIC_TEST:
       self._GenerateTestRootForLogicTest()
 
-    xctestrun_file_path = os.path.join(self._test_root_dir, 'xctestrun.plist')
+    xctestrun_file_path = os.path.join(self._test_root_dir, 'test.xctestrun')
     plist_util.Plist(xctestrun_file_path).SetPlistField('Runner',
                                                         self._xctestrun_dict)
 
@@ -418,8 +418,8 @@ class XctestRunFactory(object):
   def _GenerateTestRootForXcuitest(self):
     """Generates the test root for XCUITest.
 
-    The approach constructs xctestrun.plist and uitest runner app from Xcode.
-    Then copies app under test, test bundle, xctestrun.plist and uitest
+    The approach constructs test.xctestrun and uitest runner app from Xcode.
+    Then copies app under test, test bundle, test.xctestrun and uitest
     runner app to test root directory.
     """
     platform_path = xcode_info_util.GetSdkPlatformPath(self._sdk)
@@ -605,8 +605,8 @@ class XctestRunFactory(object):
   def _GenerateTestRootForXctest(self):
     """Generates the test root for XCTest.
 
-    The approach constructs xctestrun.plist from Xcode. Then copies app under
-    test, test bundle and xctestrun.plist to test root directory.
+    The approach constructs test.xctestrun from Xcode. Then copies app under
+    test, test bundle and test.xctestrun to test root directory.
     """
     app_under_test_plugins_dir = os.path.join(
         self._app_under_test_dir, 'PlugIns')
@@ -705,8 +705,8 @@ class XctestRunFactory(object):
   def _GenerateTestRootForLogicTest(self):
     """Generates the test root for Logic test.
 
-    The approach constructs xctestrun.plist from Xcode. Then copies test bundle
-    and xctestrun.plist to test root directory.
+    The approach constructs test.xctestrun from Xcode. Then copies test bundle
+    and test.xctestrun to test root directory.
     """
     dyld_framework_path = os.path.join(
         xcode_info_util.GetSdkPlatformPath(self._sdk),
