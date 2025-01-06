@@ -19,6 +19,7 @@ import os
 import subprocess
 
 from xctestrunner.shared import ios_errors
+from xctestrunner.shared import xcode_info_util
 
 
 def ExposeXcresult(xcresult_path, output_path):
@@ -50,11 +51,12 @@ def _ExposeDiagnostics(xcresult_path, output_path, action_result):
   if 'diagnosticsRef' not in action_result:
     return
   diagnostics_id = action_result['diagnosticsRef']['id']['_value']
-  subprocess.check_call([
-      'xcrun', 'xcresulttool', 'export', '--path', xcresult_path,
-      '--output-path', output_path, '--type', 'directory', '--id',
-      diagnostics_id
+  export_command = _MakeXcresulttoolCommand([
+    'export', '--path', xcresult_path,
+    '--output-path', output_path, '--type', 'directory', '--id',
+    diagnostics_id
   ])
+  subprocess.check_call(export_command)
 
 
 def _ExposeAttachments(xcresult_path, output_path, action_result):
@@ -90,11 +92,12 @@ def _ExposeAttachments(xcresult_path, output_path, action_result):
           target_file_path = os.path.join(target_file_dir, file_name)
 
           payload_ref_id = attachment['payloadRef']['id']['_value']
-          subprocess.check_call([
-              'xcrun', 'xcresulttool', 'export', '--path', xcresult_path,
-              '--output-path', target_file_path, '--type', 'file', '--id',
-              payload_ref_id
+          export_command = _MakeXcresulttoolCommand([
+            'export', '--path', xcresult_path,
+            '--output-path', target_file_path, '--type', 'file', '--id',
+            payload_ref_id
           ])
+          subprocess.check_call(export_command)
 
 
 def _GetResultBundleObject(xcresult_path, bundle_id=None):
@@ -107,10 +110,9 @@ def _GetResultBundleObject(xcresult_path, bundle_id=None):
   Returns:
     A dict, result bundle object in json format.
   """
-  command = [
-      'xcrun', 'xcresulttool', 'get', '--format', 'json', '--path',
-      xcresult_path
-  ]
+  command = _MakeXcresulttoolCommand([
+    'get', '--format', 'json', '--path', xcresult_path
+  ])
   if bundle_id:
     command.extend(['--id', bundle_id])
   return json.loads(subprocess.check_output(command).decode('utf-8'))
@@ -135,3 +137,17 @@ def _GetFailureTestRefs(test_summary):
       summary_ref_id = test_summary['summaryRef']['id']['_value']
       failure_test_refs.append(summary_ref_id)
   return failure_test_refs
+
+def _MakeXcresulttoolCommand(args):
+  """Constructs xcresulttool command for selected Xcode version.
+
+  Args:
+    args: array, a list of arguments to pass to xcresulttool.
+  Returns:
+    The xcresulttool command.
+  """
+  command = ['xcrun', 'xcresulttool'] + args
+  xcode_version = xcode_info_util.GetXcodeVersionNumber()
+  if xcode_version >= 1600:
+    command.extend(['--legacy'])
+  return command
