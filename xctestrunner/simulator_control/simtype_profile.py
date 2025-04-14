@@ -50,7 +50,9 @@ class SimTypeProfile(object):
       xcode_version = xcode_info_util.GetXcodeVersionNumber()
       platform_path = xcode_info_util.GetSdkPlatformPath(
           ios_constants.SDK.IPHONEOS)
-      if xcode_version >= 1100:
+      if xcode_version >= 1630:
+        sim_profiles_dir = '/Library/Developer/CoreSimulator/Profiles'
+      elif xcode_version >= 1100:
         sim_profiles_dir = os.path.join(
             platform_path, 'Library/Developer/CoreSimulator/Profiles')
       else:
