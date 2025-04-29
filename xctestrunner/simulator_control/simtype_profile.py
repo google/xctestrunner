@@ -51,18 +51,17 @@ class SimTypeProfile(object):
       platform_path = xcode_info_util.GetSdkPlatformPath(
           ios_constants.SDK.IPHONEOS)
       if xcode_version >= 1630:
-        profile_plist_path = '/Library/Developer/CoreSimulator/Profiles/DeviceTypes/%s.simdevicetype/Contents/Resources/profile.plist' % self._device_type
+        sim_profiles_dir = '/Library/Developer/CoreSimulator/Profiles'
+      elif xcode_version >= 1100:
+        sim_profiles_dir = os.path.join(
+            platform_path, 'Library/Developer/CoreSimulator/Profiles')
       else:
-        if xcode_version >= 1100:
-          sim_profiles_dir = os.path.join(
-              platform_path, 'Library/Developer/CoreSimulator/Profiles')
-        else:
-          sim_profiles_dir = os.path.join(
-              platform_path, 'Developer/Library/CoreSimulator/Profiles')
-        profile_plist_path = os.path.join(
-            sim_profiles_dir,
-            'DeviceTypes/%s.simdevicetype/Contents/Resources/profile.plist' %
-            self._device_type)
+        sim_profiles_dir = os.path.join(
+            platform_path, 'Developer/Library/CoreSimulator/Profiles')
+      profile_plist_path = os.path.join(
+          sim_profiles_dir,
+          'DeviceTypes/%s.simdevicetype/Contents/Resources/profile.plist' %
+          self._device_type)
       self._profile_plist_obj = plist_util.Plist(profile_plist_path)
     return self._profile_plist_obj
 
