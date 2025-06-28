@@ -78,7 +78,8 @@ class XctestSession(object):
   # TODO(albertdai): Support bundle id as the value of app_under_test and
   # test_bundle.
   def Prepare(self, app_under_test=None, test_bundle=None,
-              xctestrun_file_path=None, test_type=None, signing_options=None):
+              xctestrun_file_path=None, test_type=None, 
+              signing_options=None, product_module_name=None):
     """Prepares the test session.
 
     If xctestrun_file is not provided, will use app under test and test bundle
@@ -94,6 +95,8 @@ class XctestSession(object):
       test_type: ios_constants.TestType. The type of test bundle.
       signing_options: dict, the signing app options. See
           ios_constants.SIGNING_OPTIONS_JSON_HELP for details.
+      product_module_name: string, the name of the module that is being tested.
+          This will be forwarded into the xctestrun file.
 
     Raises:
       ios_errors.IllegalArgumentError:
@@ -141,7 +144,7 @@ class XctestSession(object):
       if test_type != ios_constants.TestType.LOGIC_TEST:
         xctestrun_factory = xctestrun.XctestRunFactory(
             app_under_test_dir, test_bundle_dir, self._sdk, self._device_arch,
-            test_type, signing_options, self._work_dir)
+            test_type, signing_options, self._work_dir, product_module_name)
         self._xctestrun_obj = xctestrun_factory.GenerateXctestrun()
       else:
         self._logic_test_bundle = test_bundle_dir
