@@ -473,63 +473,77 @@ def GetSupportedSimOsVersions(os_type=ios_constants.OS.IOS):
   Returns:
     a list of string, each item is an OS version number. E.g., ["10.1", "11.0"]
   """
-  if os_type is None:
-    os_type = ios_constants.OS.IOS
-  # Example output:
-  # {
-  # "runtimes" : [
-  #   {
-  #     "bundlePath" : "\/Applications\/Xcode10.app\/Contents\/Developer\
-  #                     /Platforms\/iPhoneOS.platform\/Developer\/Library\
-  #                     /CoreSimulator\/Profiles\/Runtimes\/iOS.simruntime",
-  #     "availabilityError" : "",
-  #     "buildversion" : "16A366",
-  #     "availability" : "(available)",
-  #     "isAvailable" : true,
-  #     "identifier" : "com.apple.CoreSimulator.SimRuntime.iOS-12-0",
-  #     "version" : "12.0",
-  #     "name" : "iOS 12.0"
-  #   }
-  # }
-  # See more examples in testdata/simctl_list_runtimes.json
-  xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
-  sim_runtime_infos_json = json.loads(
-      RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
-  sim_versions = []
-  for sim_runtime_info in sim_runtime_infos_json['runtimes']:
-    # Normally, the json does not contain unavailable runtimes. To be safe,
-    # also checks the 'availability' field.
-    if 'availability' in sim_runtime_info and sim_runtime_info[
-        'availability'].find('unavailable') >= 0:
-      continue
-    elif 'isAvailable' in sim_runtime_info and not sim_runtime_info[
-        'isAvailable']:
-      continue
+  # Retry up to 5 times to handle system warm-up.
+  for i in range(5):
+    if os_type is None:
+      os_type = ios_constants.OS.IOS
+    # Example output:
+    # {
+    # "runtimes" : [
+    #   {
+    #     "bundlePath" : "\/Applications\/Xcode10.app\/Contents\/Developer\
+    #                     /Platforms\/iPhoneOS.platform\/Developer\/Library\
+    #                     /CoreSimulator\/Profiles\/Runtimes\/iOS.simruntime",
+    #     "availabilityError" : "",
+    #     "buildversion" : "16A366",
+    #     "availability" : "(available)",
+    #     "isAvailable" : true,
+    #     "identifier" : "com.apple.CoreSimulator.SimRuntime.iOS-12-0",
+    #     "version" : "12.0",
+    #     "name" : "iOS 12.0"
+    #   }
+    # }
+    # See more examples in testdata/simctl_list_runtimes.json
+    xcode_version_num = xcode_info_util.GetXcodeVersionNumber()
+    sim_runtime_infos_json = json.loads(
+        RunSimctlCommand(('xcrun', 'simctl', 'list', 'runtimes', '-j')))
+    sim_versions = []
+    for sim_runtime_info in sim_runtime_infos_json['runtimes']:
+      # Normally, the json does not contain unavailable runtimes. To be safe,
+      # also checks the 'availability' field.
+      if 'availability' in sim_runtime_info and sim_runtime_info[
+          'availability'].find('unavailable') >= 0:
+        continue
+      elif 'isAvailable' in sim_runtime_info and not sim_runtime_info[
+          'isAvailable']:
+        continue
 
-    listed_os_type, listed_os_version = sim_runtime_info['name'].split(' ', 1)
-    if listed_os_type == os_type:
-      # `bundlePath` key may not exist in the old Xcode/macOS version.
-      if 'bundlePath' in sim_runtime_info:
-        runtime_path = sim_runtime_info['bundlePath']
-        info_plist_object = plist_util.Plist(
-            os.path.join(runtime_path, 'Contents/Info.plist'))
-        min_xcode_version_num = int(info_plist_object.GetPlistField('DTXcode'))
-        if xcode_version_num >= min_xcode_version_num:
+      listed_os_type, listed_os_version = sim_runtime_info['name'].split(' ', 1)
+      if listed_os_type == os_type:
+        # `bundlePath` key may not exist in the old Xcode/macOS version.
+        if 'bundlePath' in sim_runtime_info:
+          runtime_path = sim_runtime_info['bundlePath']
+          info_plist_object = plist_util.Plist(
+              os.path.join(runtime_path, 'Contents/Info.plist'))
+          min_xcode_version_num = int(info_plist_object.GetPlistField('DTXcode'))
+          if xcode_version_num >= min_xcode_version_num:
+            sim_versions.append(listed_os_version)
+        else:
+          if os_type == ios_constants.OS.IOS:
+            ios_major_version, ios_minor_version = listed_os_version.split('.', 1)
+            # Ingores the potential build version
+            ios_minor_version = ios_minor_version[0]
+            ios_version_num = int(ios_major_version) * 100 + int(
+                ios_minor_version) * 10
+            # One Xcode version always maps to one max simulator's iOS version.
+            # The rules is almost max_sim_ios_version <= xcode_version + 200.
+            # E.g., Xcode 8.3.1/8.3.3 maps to iOS 10.3, Xcode 7.3.1 maps to iOS
+            # 9.3.
+            if ios_version_num > xcode_version_num + 200:
+              continue
           sim_versions.append(listed_os_version)
-      else:
-        if os_type == ios_constants.OS.IOS:
-          ios_major_version, ios_minor_version = listed_os_version.split('.', 1)
-          # Ingores the potential build version
-          ios_minor_version = ios_minor_version[0]
-          ios_version_num = int(ios_major_version) * 100 + int(
-              ios_minor_version) * 10
-          # One Xcode version always maps to one max simulator's iOS version.
-          # The rules is almost max_sim_ios_version <= xcode_version + 200.
-          # E.g., Xcode 8.3.1/8.3.3 maps to iOS 10.3, Xcode 7.3.1 maps to iOS
-          # 9.3.
-          if ios_version_num > xcode_version_num + 200:
-            continue
-        sim_versions.append(listed_os_version)
+
+    # If versions were found, return them immediately.
+    if sim_versions:
+        return sim_versions
+
+    # If the list is empty and we have retries left, wait and try again.
+    if i < 4:
+        logging.warning(
+            'Supported simulator OS versions list is empty. Retrying in 1 second...')
+        time.sleep(1)
+
+  # If all retries fail, return the empty list.
   return sim_versions
 
 
