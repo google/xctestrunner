@@ -649,11 +649,18 @@ class XctestRunFactory(object):
             os.path.join(platform_path, _LIB_XCTEST_SWIFT_RELATIVE_PATH),
             app_under_test_frameworks_dir, app_under_test_signing_identity)
       if xcode_info_util.GetXcodeVersionNumber() >= 1300:
-        _CopyAndSignFramework(
-            os.path.join(
-                platform_path, 'Developer/Library/PrivateFrameworks/'
-                'XCUIAutomation.framework'),
-            app_under_test_frameworks_dir, app_under_test_signing_identity)
+        if xcode_info_util.GetXcodeVersionNumber() >= 1640:
+          _CopyAndSignFramework(
+              os.path.join(
+                  platform_path, 'Developer/Library/Frameworks/'
+                  'XCUIAutomation.framework'),
+              app_under_test_frameworks_dir, app_under_test_signing_identity)
+        else:
+          _CopyAndSignFramework(
+              os.path.join(
+                  platform_path, 'Developer/Library/PrivateFrameworks/'
+                  'XCUIAutomation.framework'),
+              app_under_test_frameworks_dir, app_under_test_signing_identity)
         _CopyAndSignFramework(
             os.path.join(
                 platform_path, 'Developer/Library/PrivateFrameworks/'
