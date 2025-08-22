@@ -437,28 +437,47 @@ def GetSupportedSimDeviceTypes(os_type=None):
 
 
 def GetLastSupportedIphoneSimType(os_version):
-  """"Gets the last supported iPhone simulator type of the given OS version.
+  """"Gets the newest iPhone simulator type compatible with the given iOS version.
 
-  Currently, the last supported iPhone simulator type is the last iPhone from
-  the output of `xcrun simctl list devicetypes`.
+  This function returns the most recent iPhone simulator model that can run the
+  specified iOS version. It checks both the minimum and maximum iOS version
+  compatibility for each iPhone model to ensure the returned device can actually
+  run the requested iOS version.
+
+  The function iterates through iPhone simulator types in newest-to-oldest order
+  (as returned by `xcrun simctl list devicetypes`) and returns the first model
+  that satisfies both:
+  - ios_version >= device's minimum supported iOS version
+  - ios_version <= device's maximum supported iOS version (if any)
 
   Args:
-    os_version: string, OS version of the new simulator. The format is
-      {major}.{minor}, such as 9.3, 10.2.
+    os_version: string, OS version to check compatibility against. The format is
+      {major}.{minor}, such as 9.3, 16.0, 18.5.
 
   Returns:
-    a string, the last supported iPhone simulator type.
+    a string, the newest iPhone simulator type compatible with the given iOS
+    version. For example, "iPhone 16 Pro" for iOS 18.5, or "iPhone 13 Pro"
+    for iOS 15.0.
 
   Raises:
-    ios_errors.SimError: when there is no supported iPhone simulator type.
+    ios_errors.SimError: when there is no iPhone simulator type that supports
+        the given iOS version.
+
+  Example:
+    >>> GetLastSupportedIphoneSimType("18.5")
+    "iPhone 16 Pro"
+    >>> GetLastSupportedIphoneSimType("14.0") 
+    "iPhone SE (2nd generation)"
   """
   supported_sim_types = GetSupportedSimDeviceTypes(ios_constants.OS.IOS)
-  supported_sim_types.reverse()
   os_version_float = float(os_version)
   for sim_type in supported_sim_types:
     if sim_type.startswith('iPhone'):
-      min_os_version = simtype_profile.SimTypeProfile(sim_type).min_os_version
-      if os_version_float >= min_os_version:
+      sim_profile = simtype_profile.SimTypeProfile(sim_type)
+      min_os_version = sim_profile.min_os_version
+      max_os_version = sim_profile.max_os_version
+      if (os_version_float >= min_os_version and
+          (max_os_version is None or os_version_float <= max_os_version)):
         return sim_type
   raise ios_errors.SimError('Can not find supported iPhone simulator type.')
 
