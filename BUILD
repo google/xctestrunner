@@ -1,3 +1,5 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+
 package(default_visibility = ["//visibility:public"])
 
 py_library(
@@ -15,7 +17,10 @@ py_library(
 
 py_binary(
     name = "ios_test_runner",
-    srcs = ["__init__.py", "xctestrunner/__init__.py"] + glob(
+    srcs = [
+        "__init__.py",
+        "xctestrunner/__init__.py",
+    ] + glob(
         ["xctestrunner/test_runner/*.py"],
     ),
     main = "xctestrunner/test_runner/ios_test_runner.py",
