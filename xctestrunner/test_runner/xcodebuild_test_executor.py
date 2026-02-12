@@ -211,6 +211,16 @@ class XcodebuildTestExecutor(object):
 
         check_xcodebuild_stuck.Terminate()
         if check_xcodebuild_stuck.is_xcodebuild_stuck:
+          if self._sdk == ios_constants.SDK.IPHONESIMULATOR and i < max_attempts - 1:
+            logging.warning(
+                'xcodebuild stuck on simulator (attempt %d/%d). '
+                'Will reboot simulator and retry.',
+                i + 1, max_attempts)
+            simulator = simulator_util.Simulator(self._device_id)
+            simulator.Shutdown()
+            simulator.Boot()
+            time.sleep(2)
+            continue
           return self._GetResultForXcodebuildStuck(output, return_output)
 
         output_str = output.getvalue()
