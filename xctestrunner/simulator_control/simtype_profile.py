@@ -99,10 +99,26 @@ class SimTypeProfile(object):
 
 def _extra_os_version(os_version_str):
   """Extracts os version float value from a given string."""
-  # Cut build version. E.g., cut 9.3.3 to 9.3.
-  if os_version_str.count('.') > 1:
-    os_version_str = os_version_str[:os_version_str.rfind('.')]
-  # We need to round the os version string in the simulator profile. E.g.,
-  # the maxRuntimeVersion of iPhone 5 is 10.255.255 and we could create iOS 10.3
-  # for iPhone 5.
-  return round(float(os_version_str), 1)
+  # Handle Apple's special version patterns:
+  # - x.255.255 or x.99.0 means "any version within major version x" 
+  # - 65535.255.255 means "no version limit"
+  
+  parts = os_version_str.split('.')
+  major = int(parts[0])
+  
+  # Handle unlimited version (65535.x.x)
+  if major >= 65535:
+    return 999.99  # Return a very high version number for unlimited support
+  
+  if len(parts) >= 2:
+    minor = int(parts[1])
+    
+    # Handle x.255.x or x.99.x patterns - both mean "any minor version within major x"
+    if minor >= 99:
+      return float(f"{major}.99")
+    
+    # Handle normal version patterns - use major.minor
+    return float(f"{major}.{minor}")
+  
+  # Fallback for simple major version
+  return float(major)

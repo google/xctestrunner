@@ -9,7 +9,12 @@ py_library(
 
 py_library(
     name = "simulator",
-    srcs = glob(["xctestrunner/simulator_control/*.py"]),
+    srcs = glob(
+        ["xctestrunner/simulator_control/*.py"],
+        exclude = [
+            "xctestrunner/simulator_control/test_*.py",
+        ],
+    ),
     deps = [
         ":shared",
     ],
@@ -24,6 +29,17 @@ py_binary(
         ["xctestrunner/test_runner/*.py"],
     ),
     main = "xctestrunner/test_runner/ios_test_runner.py",
+    python_version = "PY3",
+    deps = [
+        ":shared",
+        ":simulator",
+    ],
+)
+
+py_test(
+    name = "simulator_util_test",
+    srcs = ["xctestrunner/simulator_control/test_simulator_util.py"],
+    main = "xctestrunner/simulator_control/test_simulator_util.py",
     python_version = "PY3",
     deps = [
         ":shared",
