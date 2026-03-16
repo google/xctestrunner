@@ -117,7 +117,8 @@ def _AddPrepareSubParser(subparsers):
           test_bundle=args.test_bundle_path,
           xctestrun_file_path=args.xctestrun,
           test_type=args.test_type,
-          signing_options=_GetJson(args.signing_options_json_path))
+          signing_options=_GetJson(args.signing_options_json_path),
+          product_module_name=args.product_module_name)
       session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
 
   test_parser = subparsers.add_parser(
@@ -153,7 +154,8 @@ def _AddTestSubParser(subparsers):
           test_bundle=args.test_bundle_path,
           xctestrun_file_path=args.xctestrun,
           test_type=args.test_type,
-          signing_options=_GetJson(args.signing_options_json_path))
+          signing_options=_GetJson(args.signing_options_json_path),
+          product_module_name=args.product_module_name)
       session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
       return session.RunTest(args.id)
 
@@ -172,6 +174,11 @@ def _AddTestSubParser(subparsers):
       help='The platform of the device. The value can be ios_device or '
            'ios_simulator.'
   )
+  optional_arguments.add_argument(
+      '--product_module_name',
+      help='The product module name that will be set in the xctestrun file.'
+  )
+
   test_parser.set_defaults(func=_Test)
 
 
@@ -197,7 +204,8 @@ def _AddSimulatorTestSubParser(subparsers):
             test_bundle=args.test_bundle_path,
             xctestrun_file_path=args.xctestrun,
             test_type=args.test_type,
-            signing_options=_GetJson(args.signing_options_json_path))
+            signing_options=_GetJson(args.signing_options_json_path),
+          product_module_name=args.product_module_name)
         session.SetLaunchOptions(_GetJson(args.launch_options_json_path))
         if not hostless:
           try:
@@ -239,6 +247,11 @@ def _AddSimulatorTestSubParser(subparsers):
            'prefix with simulator type and os version. '
            'E.g., New-iPhone 6 Plus-10.2.')
   test_parser.set_defaults(func=_SimulatorTest)
+  optional_arguments = test_parser.add_argument_group('Optional arguments')
+  optional_arguments.add_argument(
+      '--product_module_name',
+      help='The product module name that will be set in the xctestrun file.'
+  )
 
 
 def _BuildParser():
