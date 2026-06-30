@@ -214,7 +214,8 @@ def _AddSimulatorTestSubParser(subparsers):
     """The function of sub command `simulator_test`."""
     try:
       return _RunSimulatorTest(args)
-    except ios_errors.SimError:
+    except ios_errors.SimError as e:
+      logging.error('Failed to run simulator test: %s', e)
       return runner_exit_codes.EXITCODE.SIM_ERROR
 
   test_parser = subparsers.add_parser(
