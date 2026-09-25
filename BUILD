@@ -1,10 +1,20 @@
-load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 
 package(default_visibility = ["//visibility:public"])
 
 py_library(
     name = "shared",
-    srcs = glob(["xctestrunner/shared/*.py"]),
+    srcs = glob(
+        ["xctestrunner/shared/*.py"],
+        exclude = ["xctestrunner/shared/*_test.py"],
+    ),
+)
+
+py_test(
+    name = "bundle_util_test",
+    srcs = ["xctestrunner/shared/bundle_util_test.py"],
+    main = "xctestrunner/shared/bundle_util_test.py",
+    deps = [":shared"],
 )
 
 py_library(
