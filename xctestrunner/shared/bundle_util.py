@@ -15,6 +15,7 @@
 """Utility methods for managing Apple bundles."""
 
 import glob
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -118,22 +119,30 @@ def GetCodesignIdentity(bundle_path):
     bundle_path: string, full path of bundle folder.
 
   Returns:
-    string, the codesign identity which signs the bundle with.
+    string, the SHA-1 fingerprint of the bundle's signing certificate.
 
   Raises:
     ios_errors.BundleError: when failed to get the signing identity from the
       bundle.
   """
-  command = ('codesign', '-dvv', bundle_path)
-  process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-  output = process.communicate()[0].decode('utf-8')
-  for line in output.split('\n'):
-    if line.startswith('Authority='):
-      return line[len('Authority='):]
-
-  raise ios_errors.BundleError('Failed to extract signing identity from %s' %
-                               output)
+  # Select the exact signing certificate without passing a potentially
+  # non-ASCII display name back to codesign.
+  with tempfile.TemporaryDirectory() as cert_dir:
+    prefix = os.path.join(cert_dir, 'certificate')
+    try:
+      subprocess.check_output(
+          ['codesign', '-d', '--extract-certificates=' + prefix, bundle_path],
+          stderr=subprocess.STDOUT)
+      with open(prefix + '0', 'rb') as certificate:
+        return hashlib.sha1(certificate.read()).hexdigest()
+    except subprocess.CalledProcessError as e:
+      raise ios_errors.BundleError(
+          'Failed to extract signing identity from %s: %s' %
+          (bundle_path, e.output.decode('utf-8', errors='replace'))) from e
+    except OSError as e:
+      raise ios_errors.BundleError(
+          'Failed to read signing certificate from %s: %s' %
+          (bundle_path, e)) from e
 
 
 def GetDevelopmentTeam(bundle_path):
@@ -178,25 +187,23 @@ def CodesignBundle(bundle_path,
     identity = GetCodesignIdentity(bundle_path)
   try:
     if entitlements_plist_path is None:
-      subprocess.check_call(
+      subprocess.check_output(
           [
               'codesign', '-f', '--preserve-metadata=identifier,entitlements',
               '--timestamp=none', '-s', identity, bundle_path
           ],
-          stdout=subprocess.PIPE,
-          stderr=subprocess.PIPE)
+          stderr=subprocess.STDOUT)
     else:
-      subprocess.check_call(
+      subprocess.check_output(
           [
               'codesign', '-f', '--entitlements', entitlements_plist_path,
               '--timestamp=none', '-s', identity, bundle_path
           ],
-          stdout=subprocess.PIPE,
-          stderr=subprocess.PIPE)
+          stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError as e:
     raise ios_errors.BundleError(
         'Failed to codesign the bundle %s with %s: %s' %
-        (bundle_path, identity, e.output))
+        (bundle_path, identity, e.output.decode('utf-8', errors='replace')))
 
 
 def EnableUIFileSharing(bundle_path, resigning=True):
