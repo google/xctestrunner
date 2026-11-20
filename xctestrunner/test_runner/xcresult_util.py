@@ -79,11 +79,12 @@ def _ExposeAttachments(xcresult_path, output_path, action_result):
     if 'activitySummaries' not in test_summary_result:
       continue
 
-    activity_summaries = test_summary_result['activitySummaries']['_values']
+    activity_summaries = test_summary_result['activitySummaries'].get(
+        '_values', [])
     for activity_summary in activity_summaries:
       if 'attachments' in activity_summary:
         test_identifier = test_summary_result['identifier']['_value']
-        for attachment in activity_summary['attachments']['_values']:
+        for attachment in activity_summary['attachments'].get('_values', []):
           file_name = attachment['filename']['_value']
           target_file_dir = os.path.join(output_path, 'Attachments',
                                          test_identifier)
@@ -128,7 +129,7 @@ def _GetFailureTestRefs(test_summary):
   """
   failure_test_refs = []
   if 'subtests' in test_summary:
-    for sub_test_summary in test_summary['subtests']['_values']:
+    for sub_test_summary in test_summary['subtests'].get('_values', []):
       failure_test_refs.extend(_GetFailureTestRefs(sub_test_summary))
   else:
     if (('testStatus' not in test_summary or
