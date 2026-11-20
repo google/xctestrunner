@@ -182,7 +182,12 @@ class XctestRun(object):
       shutil.rmtree(result_bundle_path, ignore_errors=True)
       command.extend(['-resultBundlePath', result_bundle_path])
 
-    if xcode_version >= 1410:
+    # xcodebuild ignores '-collect-test-diagnostics=never' (any '-name=value'
+    # is accepted unchecked); only the space-separated form takes effect.
+    # Xcode 14.1 and 14.2 reject that form, so they keep '=never'.
+    if xcode_version >= 1430:
+      command.extend(['-collect-test-diagnostics', 'never'])
+    elif xcode_version >= 1410:
       command.extend(['-collect-test-diagnostics=never'])
 
     if destination_timeout_sec:
